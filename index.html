@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Metro Herald</title>
+    <style>
+      :root {
+        --ink: #14120f;
+        --ink-soft: #3a352e;
+        --paper: #f4f1e8;
+        --paper-edge: #e2ddcf;
+        --rule: #1a1713;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 2.5rem 1rem;
+        background-color: #000;
+        font-family: Georgia, "Times New Roman", Times, serif;
+        color: var(--ink);
+        line-height: 1.5;
+      }
+
+      .paper {
+        max-width: 1080px;
+        margin: 0 auto;
+        background: var(--paper);
+        padding: 2.5rem 2.75rem 3rem;
+        box-shadow: 0 0 0 1px #2a2724, 0 24px 60px rgba(0, 0, 0, 0.8);
+      }
+
+      /* ---------- masthead ---------- */
+
+      .masthead {
+        text-align: center;
+        border-bottom: 3px double var(--rule);
+        padding-bottom: 0.75rem;
+      }
+
+      .masthead .est {
+        font-size: 0.7rem;
+        letter-spacing: 0.4em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      .masthead h1 {
+        margin: 0.35rem 0 0.2rem;
+        font-size: clamp(2.4rem, 9vw, 5.5rem);
+        font-weight: 900;
+        letter-spacing: 0.02em;
+        line-height: 0.95;
+        text-transform: uppercase;
+      }
+
+      .masthead .motto {
+        font-style: italic;
+        font-size: 0.9rem;
+        color: var(--ink-soft);
+      }
+
+      .folio {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 0.5rem 1.5rem;
+        font-size: 0.72rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--rule);
+      }
+
+      /* ---------- lead story ---------- */
+
+      .lead {
+        padding-top: 1.5rem;
+      }
+
+      .kicker {
+        font-size: 0.75rem;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        font-weight: bold;
+        color: #7a1f14;
+      }
+
+      .lead h2 {
+        margin: 0.5rem 0 0.6rem;
+        font-size: clamp(2rem, 6.5vw, 3.9rem);
+        line-height: 1.02;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: -0.01em;
+      }
+
+      .deck {
+        margin: 0 auto 1.1rem;
+        max-width: 46rem;
+        text-align: center;
+        font-size: 1.06rem;
+        font-style: italic;
+        color: var(--ink-soft);
+        border-top: 1px solid var(--paper-edge);
+        border-bottom: 1px solid var(--paper-edge);
+        padding: 0.7rem 0;
+      }
+
+      .lead h2,
+      .kicker {
+        text-align: center;
+      }
+
+      .byline {
+        text-align: center;
+        font-size: 0.82rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        padding-bottom: 1.25rem;
+        border-bottom: 3px double var(--rule);
+        margin-bottom: 1.5rem;
+      }
+
+      .byline strong {
+        font-size: 0.95rem;
+        letter-spacing: 0.14em;
+      }
+
+      .byline .role {
+        display: block;
+        margin-top: 0.25rem;
+        font-style: italic;
+        text-transform: none;
+        letter-spacing: 0.02em;
+        color: var(--ink-soft);
+      }
+
+      /* ---------- columns ---------- */
+
+      .columns {
+        column-count: 3;
+        column-gap: 2rem;
+        column-rule: 1px solid var(--paper-edge);
+        text-align: justify;
+        hyphens: auto;
+      }
+
+      .columns p {
+        margin: 0 0 0.85rem;
+      }
+
+      .columns p:first-of-type::first-letter {
+        float: left;
+        font-size: 3.6rem;
+        line-height: 0.78;
+        padding: 0.1rem 0.5rem 0 0;
+        font-weight: 900;
+      }
+
+      .subhead {
+        break-after: avoid;
+        margin: 1.2rem 0 0.5rem;
+        font-size: 0.8rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        font-weight: bold;
+      }
+
+      blockquote {
+        margin: 1rem 0;
+        padding: 0.75rem 0;
+        border-top: 1px solid var(--rule);
+        border-bottom: 1px solid var(--rule);
+        font-size: 1.1rem;
+        font-style: italic;
+        line-height: 1.35;
+        break-inside: avoid;
+      }
+
+      blockquote cite {
+        display: block;
+        margin-top: 0.5rem;
+        font-size: 0.72rem;
+        font-style: normal;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      /* ---------- art ---------- */
+
+      figure {
+        margin: 0 0 1rem;
+        break-inside: avoid;
+      }
+
+      figure svg {
+        display: block;
+        width: 100%;
+        height: auto;
+        border: 1px solid var(--rule);
+      }
+
+      figcaption {
+        font-size: 0.76rem;
+        line-height: 1.35;
+        color: var(--ink-soft);
+        padding-top: 0.4rem;
+        border-bottom: 1px solid var(--paper-edge);
+        padding-bottom: 0.5rem;
+      }
+
+      figcaption b {
+        color: var(--ink);
+      }
+
+      /* ---------- fact box ---------- */
+
+      .factbox {
+        break-inside: avoid;
+        border: 2px solid var(--rule);
+        padding: 0.9rem 1rem;
+        margin: 0 0 1rem;
+        background: #ece8db;
+      }
+
+      .factbox h3 {
+        margin: 0 0 0.5rem;
+        font-size: 0.78rem;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        border-bottom: 1px solid var(--rule);
+        padding-bottom: 0.35rem;
+      }
+
+      .factbox ul {
+        margin: 0;
+        padding-left: 1.1rem;
+        font-size: 0.86rem;
+      }
+
+      .factbox li {
+        margin-bottom: 0.4rem;
+      }
+
+      /* ---------- below the fold ---------- */
+
+      .fold {
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 3px double var(--rule);
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.75rem;
+      }
+
+      .fold article h4 {
+        margin: 0 0 0.4rem;
+        font-size: 1.15rem;
+        line-height: 1.15;
+        text-transform: uppercase;
+        border-bottom: 1px solid var(--rule);
+        padding-bottom: 0.35rem;
+      }
+
+      .fold article p {
+        margin: 0;
+        font-size: 0.88rem;
+        text-align: justify;
+      }
+
+      .fold .tag {
+        font-size: 0.68rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #7a1f14;
+        font-weight: bold;
+      }
+
+      .colophon {
+        margin-top: 2rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--rule);
+        font-size: 0.72rem;
+        letter-spacing: 0.06em;
+        color: var(--ink-soft);
+        text-align: center;
+      }
+
+      .disclaimer {
+        margin-top: 0.5rem;
+        font-style: italic;
+      }
+
+      @media (max-width: 820px) {
+        .columns {
+          column-count: 2;
+        }
+        .fold {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 560px) {
+        body {
+          padding: 1rem 0.5rem;
+        }
+        .paper {
+          padding: 1.5rem 1.25rem 2rem;
+        }
+        .columns {
+          column-count: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="paper">
+      <header class="masthead">
+        <div class="est">Established 1948 &middot; City Edition</div>
+        <h1>The Metro Herald</h1>
+        <div class="motto">"Truth, Told Plainly"</div>
+      </header>
+
+      <div class="folio">
+        <span>Vol. LXXVIII &middot; No. 241</span>
+        <span>Saturday, August 29, 2026</span>
+        <span>Late Edition &middot; ₱25.00</span>
+      </div>
+
+      <section class="lead">
+        <div class="kicker">Breaking &middot; Public Safety</div>
+        <h2>Six-Vehicle Pile-Up Shuts Northbound Expressway</h2>
+
+        <p class="deck">
+          Dense pre-dawn fog and a stalled delivery truck triggered a chain
+          collision at Kilometer 42 that injured eleven and closed three lanes
+          for nearly seven hours, transport officials confirmed Friday.
+        </p>
+
+        <div class="byline">
+          By <strong>Antonio O. Madayag Jr.</strong>
+          <span class="role">Main News Anchor &amp; Editor-in-Chief, The Metro Herald</span>
+        </div>
+
+        <div class="columns">
+          <figure>
+            <svg viewBox="0 0 640 360" role="img"
+                 aria-label="Illustration of emergency vehicles at a fogbound highway crash scene">
+              <rect width="640" height="360" fill="#d9d4c6" />
+              <!-- fog bands -->
+              <rect y="0" width="640" height="150" fill="#cfc9ba" />
+              <rect y="150" width="640" height="14" fill="#bdb6a6" />
+              <!-- roadway -->
+              <path d="M0 360 L250 164 L390 164 L640 360 Z" fill="#8f887a" />
+              <path d="M320 164 L300 360 L340 360 Z" fill="#e8e3d5" />
+              <path d="M0 360 L250 164 L262 164 L40 360 Z" fill="#e8e3d5" opacity=".6" />
+              <path d="M640 360 L390 164 L378 164 L600 360 Z" fill="#e8e3d5" opacity=".6" />
+              <!-- vehicles, silhouetted -->
+              <g fill="#3a352e">
+                <rect x="120" y="272" width="132" height="46" rx="7" />
+                <rect x="150" y="248" width="76" height="30" rx="6" />
+                <rect x="352" y="286" width="150" height="52" rx="7" />
+                <rect x="386" y="258" width="86" height="34" rx="6" />
+                <rect x="268" y="214" width="88" height="32" rx="5" />
+                <rect x="288" y="198" width="50" height="20" rx="4" />
+              </g>
+              <!-- emergency lights -->
+              <g>
+                <circle cx="186" cy="238" r="16" fill="#7a1f14" opacity=".35" />
+                <circle cx="186" cy="238" r="7" fill="#7a1f14" />
+                <circle cx="430" cy="248" r="16" fill="#7a1f14" opacity=".35" />
+                <circle cx="430" cy="248" r="7" fill="#7a1f14" />
+              </g>
+              <!-- responders -->
+              <g fill="#14120f">
+                <rect x="232" y="292" width="9" height="30" rx="4" />
+                <circle cx="236" cy="286" r="7" />
+                <rect x="330" y="300" width="9" height="32" rx="4" />
+                <circle cx="334" cy="294" r="7" />
+              </g>
+              <!-- cones -->
+              <g fill="#7a1f14">
+                <path d="M96 342 L104 316 L112 342 Z" />
+                <path d="M540 348 L548 320 L556 348 Z" />
+              </g>
+            </svg>
+            <figcaption>
+              <b>KILOMETER 42.</b> Responders work the northbound lanes shortly
+              after sunrise Friday. Visibility at the time of the collision was
+              measured at under forty meters. — <i>Herald illustration</i>
+            </figcaption>
+          </figure>
+
+          <p>
+            A chain-reaction collision involving six vehicles closed the
+            northbound lanes of the Northgate Expressway for nearly seven hours
+            on Friday, sending eleven people to area hospitals and stranding
+            commuters for more than nine kilometers behind the wreck.
+          </p>
+
+          <p>
+            The first impact was recorded at 5:12 a.m., when a refrigerated
+            delivery truck lost power and came to rest across the middle lane
+            near Kilometer 42. Two sedans traveling behind it struck the
+            trailer within seconds of one another. Four more vehicles, including
+            a passenger van carrying early-shift workers, collided in the
+            wreckage that followed.
+          </p>
+
+          <p>
+            Visibility at the scene was under forty meters, according to
+            readings from the expressway's roadside weather station. The fog
+            advisory issued the previous evening had not been lifted.
+          </p>
+
+          <div class="factbox">
+            <h3>At a Glance</h3>
+            <ul>
+              <li><b>When:</b> 5:12 a.m., Friday, Aug. 28</li>
+              <li><b>Where:</b> Northgate Expressway, KM 42 northbound</li>
+              <li><b>Vehicles:</b> 6, including one refrigerated truck</li>
+              <li><b>Injured:</b> 11 &mdash; 3 serious, 8 treated and released</li>
+              <li><b>Fatalities:</b> None reported</li>
+              <li><b>Lanes reopened:</b> 12:04 p.m.</li>
+            </ul>
+          </div>
+
+          <h3 class="subhead">Response and Rescue</h3>
+
+          <p>
+            Emergency crews from three municipalities reached the scene within
+            eighteen minutes. Two occupants of the passenger van were freed with
+            hydraulic tools after roughly forty minutes of extrication work,
+            district rescue coordinator Marisol Enriquez said at a midday
+            briefing.
+          </p>
+
+          <p>
+            Of the eleven people taken to hospitals, three were admitted in
+            serious but stable condition. The remaining eight were treated for
+            minor injuries and released by Friday afternoon. No fatalities have
+            been reported.
+          </p>
+
+          <blockquote>
+            The fog was there. The advisory was there. What was missing was
+            anything on that road telling drivers to slow down before they were
+            already inside it.
+            <cite>&mdash; Marisol Enriquez, District Rescue Coordinator</cite>
+          </blockquote>
+
+          <h3 class="subhead">Questions Over Warning Systems</h3>
+
+          <p>
+            Attention has turned to the expressway's variable-message signs,
+            three of which were reportedly offline in the affected corridor at
+            the time of the crash. The Northgate Expressway Authority confirmed
+            that two sign units had been scheduled for maintenance since June.
+          </p>
+
+          <p>
+            The authority's spokesperson, Daniel Reyes, said a full technical
+            audit of the corridor's fog-detection and signage network would
+            begin Monday and that preliminary findings would be made public
+            within thirty days.
+          </p>
+
+          <p>
+            Transport safety advocates have pressed for automated speed
+            reduction during low-visibility events, a measure adopted on two
+            other national expressways in 2024 but never extended to the
+            Northgate route.
+          </p>
+
+          <h3 class="subhead">What Happens Next</h3>
+
+          <p>
+            The Highway Patrol Group has opened a formal investigation and is
+            reviewing dashboard-camera footage submitted by motorists. Officers
+            have asked anyone traveling northbound between 4:45 and 5:30 a.m.
+            Friday to come forward.
+          </p>
+
+          <p>
+            All northbound lanes reopened at 12:04 p.m. Crews remained on site
+            through the evening to repair a damaged section of median barrier.
+            Motorists are advised that a single-lane closure will remain in
+            effect at Kilometer 42 through the weekend.
+          </p>
+        </div>
+      </section>
+
+      <section class="fold">
+        <article>
+          <span class="tag">Local</span>
+          <h4>Council to Review Fog Protocols</h4>
+          <p>
+            The regional transport council will convene a special session
+            Tuesday to examine low-visibility procedures across all four
+            expressway corridors, following calls from commuter groups for
+            mandatory speed limits during declared fog advisories.
+          </p>
+        </article>
+        <article>
+          <span class="tag">Health</span>
+          <h4>Hospitals Report Normal Capacity</h4>
+          <p>
+            Both receiving hospitals confirmed they remained within normal
+            operating capacity through Friday. Administrators credited a
+            standing mutual-aid arrangement that distributed arriving patients
+            between the two facilities.
+          </p>
+        </article>
+        <article>
+          <span class="tag">Commuters</span>
+          <h4>Bus Routes Restored Saturday</h4>
+          <p>
+            Provincial bus operators that diverted through the old national road
+            on Friday resumed normal schedules Saturday morning. Operators
+            estimated the detour added between fifty and seventy minutes to
+            northbound trips.
+          </p>
+        </article>
+      </section>
+
+      <footer class="colophon">
+        The Metro Herald &middot; Published daily by Herald Press &middot;
+        <b>Antonio O. Madayag Jr.</b>, Main News Anchor &amp; Editor-in-Chief
+        <div class="disclaimer">
+          This is a fictional front page created for design and layout purposes.
+          The publication, events, and persons quoted are invented.
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>
