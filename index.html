@@ -1,74 +1,384 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<style>
-
-.class1 {
-	    background: black;
-        padding:10px;
-}
-.class2 {
-	    background: orange;
-        padding:10px;
-}
-.class3 {
-	    background: blue;
-        padding:10px;
-}
-.class4 {
-	    background: black;
-        color: white;
-        padding:10px;
-        text-align: center;
-}
-.header{
-	    background: black;
-        color: white;
-        padding:50px;
-        text-align: center;
-}
-.nav{
-	    background: white;
-        color: black;
-        padding:20px;
-        text-align: center;
-}
-.body{
-	    background: gray;
-        color: white;
-        padding-top:300px;
-        padding-bottom:300px;
-        text-align: center;
-}
-.button{
-    padding : 10px;
-    background: blue;
-    color:white:
-}
-
-
-
-</style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meridian Grade School — Grading System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;0,700;1,500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<div class="class1">
-	<div class="header">Antonio Madayag Jr.</div>
-    <div class="nav">
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="crest">
+      <div class="crest-mark">MG</div>
+      <div class="crest-text">
+        <span class="crest-name">Meridian</span>
+        <span class="crest-sub">Grade School</span>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-item is-active" data-page="home">
+        <span class="nav-num">01</span> Home
+      </button>
+      <button class="nav-item" data-page="teachers">
+        <span class="nav-num">02</span> Teachers
+      </button>
+      <button class="nav-item" data-page="students">
+        <span class="nav-num">03</span> Students
+      </button>
+      <button class="nav-item" data-page="subjects">
+        <span class="nav-num">04</span> Subjects
+      </button>
+      <button class="nav-item" data-page="sections">
+        <span class="nav-num">05</span> Sections
+      </button>
+      <button class="nav-item" data-page="settings">
+        <span class="nav-num">06</span> Admin Settings
+      </button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="term-pill">S.Y. <span id="sidebarYear">2026–2027</span></div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- HOME -->
+    <section class="page is-active" id="page-home">
+      <header class="page-head">
         <div>
-            <span class="button">Home</span>
-            <span class="button">Gallery</span>
-            <span class="button">About</span>
-            <span class="button">Login</span>
+          <p class="page-eyebrow">Overview</p>
+          <h1>Good day, Registrar.</h1>
+          <p class="page-desc">Here's where the school year stands right now.</p>
         </div>
-    </div>
-    <div class="body">BODY</div>
-	<div class="class2">
-    	<div class="class3">
-        	<div class="class4">footer</div>
+      </header>
+
+      <div class="stat-row">
+        <div class="stat-tile">
+          <span class="stat-corner">Teachers</span>
+          <span class="stat-num" id="statTeachers">0</span>
+          <span class="stat-caption">on record</span>
         </div>
-    </div>
+        <div class="stat-tile">
+          <span class="stat-corner">Students</span>
+          <span class="stat-num" id="statStudents">0</span>
+          <span class="stat-caption">enrolled</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-corner">Subjects</span>
+          <span class="stat-num" id="statSubjects">0</span>
+          <span class="stat-caption">offered</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-corner">Sections</span>
+          <span class="stat-num" id="statSections">0</span>
+          <span class="stat-caption">running</span>
+        </div>
+      </div>
+
+      <div class="ledger-panel">
+        <div class="ledger-head">
+          <h2>Recent activity</h2>
+        </div>
+        <table class="ledger-table" id="activityTable">
+          <thead>
+            <tr><th>When</th><th>What happened</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- TEACHERS -->
+    <section class="page" id="page-teachers">
+      <header class="page-head">
+        <div>
+          <p class="page-eyebrow">Faculty</p>
+          <h1>Teachers</h1>
+          <p class="page-desc">Everyone currently assigned to teach a class.</p>
+        </div>
+        <button class="btn-seal" data-add="teachers">+ Add teacher</button>
+      </header>
+      <div class="ledger-panel">
+        <table class="ledger-table" id="table-teachers">
+          <thead>
+            <tr>
+              <th>Name</th><th>Email</th><th>Contact no.</th><th>Advisory</th><th>Subject load</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p class="empty-note" id="empty-teachers" hidden>No teachers yet. Add the first one above.</p>
+      </div>
+    </section>
+
+    <!-- STUDENTS -->
+    <section class="page" id="page-students">
+      <header class="page-head">
+        <div>
+          <p class="page-eyebrow">Enrollment</p>
+          <h1>Students</h1>
+          <p class="page-desc">Every learner currently enrolled this year.</p>
+        </div>
+        <button class="btn-seal" data-add="students">+ Add student</button>
+      </header>
+
+      <div class="filter-bar">
+        <select id="studentFilterField" aria-label="Search field">
+          <option value="name">Search by name</option>
+          <option value="studentNo">Search by student no.</option>
+        </select>
+        <input type="text" id="studentSearchInput" placeholder="Type a name…">
+
+        <select id="studentFilterGrade" aria-label="Filter by grade level">
+          <option value="all">All grade levels</option>
+          <option value="Grade 7">Grade 7</option>
+          <option value="Grade 8">Grade 8</option>
+          <option value="Grade 9">Grade 9</option>
+          <option value="Grade 10">Grade 10</option>
+        </select>
+
+        <select id="studentFilterSection" aria-label="Filter by section">
+          <option value="all">All sections</option>
+        </select>
+
+        <button type="button" class="btn-ghost" id="studentSearchClear">Clear</button>
+      </div>
+
+      <div class="ledger-panel">
+        <table class="ledger-table" id="table-students">
+          <thead>
+            <tr>
+              <th>Student no.</th><th>Name</th><th>Grade level</th><th>Section</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p class="empty-note" id="empty-students" hidden>No students yet. Add the first one above.</p>
+      </div>
+    </section>
+
+    <!-- SUBJECTS -->
+    <section class="page" id="page-subjects">
+      <header class="page-head">
+        <div>
+          <p class="page-eyebrow">Curriculum</p>
+          <h1>Subjects</h1>
+          <p class="page-desc">What's being taught, and by whom.</p>
+        </div>
+        <button class="btn-seal" data-add="subjects">+ Add subject</button>
+      </header>
+
+      <div class="filter-bar">
+        <input type="text" id="subjectSearchInput" placeholder="Search code or name…">
+
+        <select id="subjectFilterGrade" aria-label="Filter by grade level">
+          <option value="all">All grade levels</option>
+          <option value="Grade 7">Grade 7</option>
+          <option value="Grade 8">Grade 8</option>
+          <option value="Grade 9">Grade 9</option>
+          <option value="Grade 10">Grade 10</option>
+        </select>
+
+        <select id="subjectFilterUnits" aria-label="Filter by units">
+          <option value="all">All units</option>
+        </select>
+
+        <select id="subjectFilterTeacher" aria-label="Filter by teacher">
+          <option value="all">All teachers</option>
+          <option value="none">Unassigned</option>
+        </select>
+
+        <button type="button" class="btn-ghost" id="subjectSearchClear">Clear</button>
+      </div>
+
+      <div class="ledger-panel">
+        <table class="ledger-table" id="table-subjects">
+          <thead>
+            <tr>
+              <th>Code</th><th>Subject</th><th>Units</th><th>Grade level</th><th>Teacher</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p class="empty-note" id="empty-subjects" hidden>No subjects yet. Add the first one above.</p>
+      </div>
+    </section>
+
+    <!-- SECTIONS -->
+    <section class="page" id="page-sections">
+      <header class="page-head">
+        <div>
+          <p class="page-eyebrow">Class groupings</p>
+          <h1>Sections</h1>
+          <p class="page-desc">How students are grouped, and who advises each group.</p>
+        </div>
+        <button class="btn-seal" data-add="sections">+ Add section</button>
+      </header>
+      <div class="ledger-panel">
+        <table class="ledger-table" id="table-sections">
+          <thead>
+            <tr>
+              <th>Section</th><th>Grade level</th><th>Adviser</th><th>Students</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p class="empty-note" id="empty-sections" hidden>No sections yet. Add the first one above.</p>
+      </div>
+    </section>
+
+    <!-- ADMIN SETTINGS -->
+    <section class="page" id="page-settings">
+      <header class="page-head">
+        <div>
+          <p class="page-eyebrow">Configuration</p>
+          <h1>Admin settings</h1>
+          <p class="page-desc">School-wide defaults used across the grading system.</p>
+        </div>
+      </header>
+
+      <div class="ledger-panel settings-panel">
+        <form id="settingsForm">
+          <div class="field-grid">
+            <label class="field">
+              <span>School name</span>
+              <input type="text" id="set-schoolName" required>
+            </label>
+            <label class="field">
+              <span>School year</span>
+              <input type="text" id="set-schoolYear" placeholder="2026–2027" required>
+            </label>
+            <label class="field">
+              <span>Current grading period</span>
+              <select id="set-period">
+                <option>1st Quarter</option>
+                <option>2nd Quarter</option>
+                <option>3rd Quarter</option>
+                <option>4th Quarter</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Grading scale</span>
+              <select id="set-scale">
+                <option value="percentage">Percentage (0–100)</option>
+                <option value="gpa">GPA (1.0–5.0)</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Passing grade</span>
+              <input type="number" id="set-passing" min="0" max="100" required>
+            </label>
+          </div>
+          <div class="settings-actions">
+            <button type="submit" class="btn-seal">Save settings</button>
+            <span class="save-flash" id="saveFlash" hidden>Saved.</span>
+          </div>
+        </form>
+
+        <div class="danger-zone">
+          <div>
+            <h3>Reset sample data</h3>
+            <p>Puts every list back to its starting sample records. Cannot be undone.</p>
+          </div>
+          <button class="btn-pen" id="resetDataBtn">Reset data</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
 </div>
 
+<!-- MODAL -->
+<div class="modal-backdrop" id="modalBackdrop" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2 id="modalTitle">Add record</h2>
+      <button class="modal-close" id="modalClose" aria-label="Close">&times;</button>
+    </div>
+    <form id="modalForm">
+      <div class="field-grid" id="modalFields"></div>
+      <div class="modal-actions" id="modalActions">
+        <button type="button" class="btn-ghost" id="modalCancel">Cancel</button>
+        <button type="submit" class="btn-seal" id="modalSubmit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- CONFIRM DELETE -->
+<div class="modal-backdrop" id="confirmBackdrop" hidden>
+  <div class="modal-card modal-card--small" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2>Delete this record?</h2>
+    </div>
+    <p class="confirm-text" id="confirmText">This can't be undone.</p>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="confirmCancel">Cancel</button>
+      <button type="button" class="btn-pen" id="confirmDelete">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- SUBJECT LOAD -->
+<div class="modal-backdrop" id="loadBackdrop" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2 id="loadTitle">Subject load</h2>
+      <button class="modal-close" id="loadClose" aria-label="Close">&times;</button>
+    </div>
+
+    <table class="ledger-table" id="loadTable">
+      <thead>
+        <tr><th>Code</th><th>Subject</th><th></th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <p class="empty-note" id="loadEmpty" hidden>No subjects assigned yet.</p>
+
+    <div class="load-add-row">
+      <select id="loadAddSelect"></select>
+      <button type="button" class="btn-seal" id="loadAddBtn">Add subject</button>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="loadDone">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- GRADING CARD SHEET -->
+<div class="modal-backdrop" id="gradesBackdrop" hidden>
+  <div class="modal-card modal-card--wide" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2 id="gradesTitle">Grading card sheet</h2>
+      <button class="modal-close" id="gradesClose" aria-label="Close">&times;</button>
+    </div>
+    <p class="grades-period-note" id="gradesPeriodNote"></p>
+
+    <div class="grades-table-wrap">
+      <table class="ledger-table" id="gradesTable">
+        <thead>
+          <tr><th>Subject</th><th>1st Grading</th><th>2nd Grading</th><th>3rd Grading</th><th>4th Grading</th><th>Final rating</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="gradesDone">Close</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
 </body>
 </html>
