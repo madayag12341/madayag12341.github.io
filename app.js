@@ -9,10 +9,10 @@
    
    let data = {
      teachers: [
-       { id: newId(), name: "Marisol Andrade", email: "m.andrade@meridian.edu", contact: "0917-224-6610", status: "Active", username: "mandrade", password: "Cx9!qLp2Rz" },
-       { id: newId(), name: "Daniel Reyes", email: "d.reyes@meridian.edu", contact: "0928-880-1123", status: "Active", username: "dreyes", password: "Kt4#mWv8Bn" },
-       { id: newId(), name: "Priya Kapoor", email: "p.kapoor@meridian.edu", contact: "0933-410-7742", status: "Active", username: "pkapoor", password: "Rf7@hLd3Sy" },
-       { id: newId(), name: "Louie Fernandez", email: "l.fernandez@meridian.edu", contact: "0905-771-2290", status: "Inactive", username: "lfernandez", password: "Vp2$nZq6Tm" },
+       { id: newId(), name: "Marisol Andrade", email: "m.andrade@meridian.edu", contact: "0917-224-6610", status: "Active", username: "mandrade", password: "Cx9!qLp2Rz", adminAccess: false },
+       { id: newId(), name: "Daniel Reyes", email: "d.reyes@meridian.edu", contact: "0928-880-1123", status: "Active", username: "dreyes", password: "Kt4#mWv8Bn", adminAccess: false },
+       { id: newId(), name: "Priya Kapoor", email: "p.kapoor@meridian.edu", contact: "0933-410-7742", status: "Active", username: "pkapoor", password: "Rf7@hLd3Sy", adminAccess: false },
+       { id: newId(), name: "Louie Fernandez", email: "l.fernandez@meridian.edu", contact: "0905-771-2290", status: "Inactive", username: "lfernandez", password: "Vp2$nZq6Tm", adminAccess: false },
      ],
      students: [
        { id: newId(), studentNo: "MG-2026-0142", name: "Ava Bernal", gradeLevel: "Grade 8", sectionId: null, status: "Active", username: "abernal", password: "Qz8!vRk4Pd", _baseQ1: 88, _baseQ2: 90 },
@@ -22,20 +22,24 @@
        { id: newId(), studentNo: "MG-2026-0146", name: "Lian Ocampo", gradeLevel: "Grade 9", sectionId: null, status: "Inactive", username: "locampo", password: "Ty1%rXe4Cq", _baseQ1: 75, _baseQ2: 78 },
      ],
      subjects: [
-       { id: newId(), code: "MTH-701", name: "Mathematics 7", units: 1, gradeLevel: "Grade 7", teacherId: null },
-       { id: newId(), code: "ENG-701", name: "English 7", units: 1, gradeLevel: "Grade 7", teacherId: null },
-       { id: newId(), code: "SCI-701", name: "Science 7", units: 1, gradeLevel: "Grade 7", teacherId: null },
-       { id: newId(), code: "MTH-801", name: "Mathematics 8", units: 1, gradeLevel: "Grade 8", teacherId: null },
-       { id: newId(), code: "ENG-801", name: "English 8", units: 1, gradeLevel: "Grade 8", teacherId: null },
-       { id: newId(), code: "SCI-801", name: "Science 8", units: 1, gradeLevel: "Grade 8", teacherId: null },
-       { id: newId(), code: "MTH-901", name: "Mathematics 9", units: 1, gradeLevel: "Grade 9", teacherId: null },
-       { id: newId(), code: "ENG-901", name: "English 9", units: 1, gradeLevel: "Grade 9", teacherId: null },
-       { id: newId(), code: "SCI-901", name: "Science 9", units: 1, gradeLevel: "Grade 9", teacherId: null },
+       { id: newId(), code: "MTH-701", name: "Mathematics 7", units: 1, gradeLevel: "Grade 7", teacherIds: [] },
+       { id: newId(), code: "ENG-701", name: "English 7", units: 1, gradeLevel: "Grade 7", teacherIds: [] },
+       { id: newId(), code: "SCI-701", name: "Science 7", units: 1, gradeLevel: "Grade 7", teacherIds: [] },
+       { id: newId(), code: "MTH-801", name: "Mathematics 8", units: 1, gradeLevel: "Grade 8", teacherIds: [] },
+       { id: newId(), code: "ENG-801", name: "English 8", units: 1, gradeLevel: "Grade 8", teacherIds: [] },
+       { id: newId(), code: "SCI-801", name: "Science 8", units: 1, gradeLevel: "Grade 8", teacherIds: [] },
+       { id: newId(), code: "MTH-901", name: "Mathematics 9", units: 1, gradeLevel: "Grade 9", teacherIds: [] },
+       { id: newId(), code: "ENG-901", name: "English 9", units: 1, gradeLevel: "Grade 9", teacherIds: [] },
+       { id: newId(), code: "SCI-901", name: "Science 9", units: 1, gradeLevel: "Grade 9", teacherIds: [] },
      ],
      sections: [
        { id: newId(), name: "Grade 7 – Narra", gradeLevel: "Grade 7", adviserId: null },
        { id: newId(), name: "Grade 8 – Molave", gradeLevel: "Grade 8", adviserId: null },
        { id: newId(), name: "Grade 9 – Acacia", gradeLevel: "Grade 9", adviserId: null },
+     ],
+     admins: [
+       { id: newId(), name: "Corazon Villareal", role: "Principal", username: "cvillareal", password: "Ht8@nQe1Zm", status: "Active" },
+       { id: newId(), name: "Bien Santos", role: "Administrator", username: "bsantos", password: "Lp4#wRc9Ty", status: "Active" },
      ],
    };
    
@@ -46,15 +50,15 @@
    data.students[3].sectionId = data.sections[0].id;
    data.students[4].sectionId = data.sections[2].id;
    
-   data.subjects[0].teacherId = data.teachers[1].id; // Mathematics 7 -> Daniel Reyes
-   data.subjects[1].teacherId = data.teachers[1].id; // English 7 -> Daniel Reyes
-   data.subjects[2].teacherId = data.teachers[2].id; // Science 7 -> Priya Kapoor
-   data.subjects[3].teacherId = data.teachers[0].id; // Mathematics 8 -> Marisol Andrade
-   data.subjects[4].teacherId = data.teachers[3].id; // English 8 -> Louie Fernandez
-   data.subjects[5].teacherId = data.teachers[2].id; // Science 8 -> Priya Kapoor
-   data.subjects[6].teacherId = data.teachers[0].id; // Mathematics 9 -> Marisol Andrade
-   data.subjects[7].teacherId = data.teachers[1].id; // English 9 -> Daniel Reyes
-   data.subjects[8].teacherId = data.teachers[2].id; // Science 9 -> Priya Kapoor
+   data.subjects[0].teacherIds = [data.teachers[1].id]; // Mathematics 7 -> Daniel Reyes
+   data.subjects[1].teacherIds = [data.teachers[1].id]; // English 7 -> Daniel Reyes
+   data.subjects[2].teacherIds = [data.teachers[2].id]; // Science 7 -> Priya Kapoor
+   data.subjects[3].teacherIds = [data.teachers[0].id]; // Mathematics 8 -> Marisol Andrade
+   data.subjects[4].teacherIds = [data.teachers[3].id]; // English 8 -> Louie Fernandez
+   data.subjects[5].teacherIds = [data.teachers[2].id]; // Science 8 -> Priya Kapoor
+   data.subjects[6].teacherIds = [data.teachers[0].id]; // Mathematics 9 -> Marisol Andrade
+   data.subjects[7].teacherIds = [data.teachers[1].id]; // English 9 -> Daniel Reyes
+   data.subjects[8].teacherIds = [data.teachers[2].id]; // Science 9 -> Priya Kapoor
    
    data.sections[0].adviserId = data.teachers[1].id;
    data.sections[1].adviserId = data.teachers[0].id;
@@ -93,6 +97,13 @@
      period: "2nd Quarter",
      scale: "percentage",
      passing: 75,
+   };
+   
+   // Role permissions, managed from the admin/principal accounts modal.
+   let permissions = {
+     studentsViewSubjects: true,
+     studentsViewGradingCard: true,
+     studentsViewTeachersPage: true,
    };
    
    let activityLog = [
@@ -157,14 +168,14 @@
          { key: "name", label: "Subject name", type: "select", options: () => subjectNameOptions(), required: true },
          { key: "units", label: "Units", type: "number" },
          { key: "gradeLevel", label: "Grade level", type: "select", options: ["Grade 7", "Grade 8", "Grade 9", "Grade 10"] },
-         { key: "teacherId", label: "Teacher", type: "select", options: () => teacherOptions() },
+         { key: "teacherIds", label: "Teachers", type: "multiselect", options: () => teacherOptions() },
        ],
        columns: (row) => [
          row.code,
          row.name,
          row.units,
          row.gradeLevel,
-         teacherName(row.teacherId),
+         teacherNames(row.teacherIds),
        ],
      },
      sections: {
@@ -196,16 +207,24 @@
      const uniqueNames = [...new Set(data.subjects.map(s => s.name))];
      return uniqueNames.map(n => ({ value: n, label: n }));
    }
+   function subjectDefaultsForName(name) {
+     const match = data.subjects.find(s => s.name === name);
+     return match ? { code: match.code, gradeLevel: match.gradeLevel } : null;
+   }
    function teacherName(id) {
      const t = data.teachers.find(t => t.id == id);
      return t ? t.name : "—";
+   }
+   function teacherNames(ids) {
+     if (!ids || ids.length === 0) return "—";
+     return ids.map(id => teacherName(id)).join(", ");
    }
    function sectionName(id) {
      const s = data.sections.find(s => s.id == id);
      return s ? s.name : "—";
    }
    function subjectLoadCount(teacherId) {
-     return data.subjects.filter(s => s.teacherId == teacherId).length;
+     return data.subjects.filter(s => (s.teacherIds || []).includes(teacherId)).length;
    }
    function studentCountForSection(sectionId) {
      return data.students.filter(s => s.sectionId == sectionId).length;
@@ -294,7 +313,7 @@
        const matchesGrade = subjectFilter.gradeLevel === "all" || s.gradeLevel === subjectFilter.gradeLevel;
        const matchesUnits = subjectFilter.units === "all" || String(s.units) === String(subjectFilter.units);
        const matchesTeacher = subjectFilter.teacherId === "all" ||
-         (subjectFilter.teacherId === "none" ? !s.teacherId : String(s.teacherId) === String(subjectFilter.teacherId));
+         (subjectFilter.teacherId === "none" ? !(s.teacherIds && s.teacherIds.length) : (s.teacherIds || []).includes(Number(subjectFilter.teacherId)));
        return matchesTerm && matchesGrade && matchesUnits && matchesTeacher;
      });
    }
@@ -348,9 +367,6 @@
      const parts = [];
      if (entityKey === "students") {
        parts.push(`<button data-grades="${row.id}">Grading card sheet</button>`);
-     }
-     if (entityKey === "sections") {
-       parts.push(`<button data-view="${entityKey}:${row.id}">View</button>`);
      }
      parts.push(`<button data-edit="${entityKey}:${row.id}">Edit</button>`);
      parts.push(`<button class="link-delete" data-delete="${entityKey}:${row.id}">Delete</button>`);
@@ -420,12 +436,22 @@
    
      config.fields.forEach(field => {
        const wrap = document.createElement("label");
-       wrap.className = "field";
-       const value = row ? row[field.key] ?? "" : "";
+       wrap.className = field.type === "multiselect" ? "field field--full" : "field";
+       const value = field.type === "multiselect" ? (row ? (row[field.key] || []) : []) : (row ? row[field.key] ?? "" : "");
        const disabled = mode === "view" ? "disabled" : "";
    
        let inputHtml;
-       if (field.type === "select") {
+       if (field.type === "multiselect") {
+         const opts = typeof field.options === "function" ? field.options() : field.options.map(o => ({ value: o, label: o }));
+         const selected = value.map(String);
+         inputHtml = `<div class="checkbox-list" data-key="${field.key}">` +
+           opts.filter(o => o.value !== "").map(o => `
+             <label class="checkbox-option">
+               <input type="checkbox" value="${o.value}" ${selected.includes(String(o.value)) ? "checked" : ""} ${disabled}>
+               <span>${o.label}</span>
+             </label>`).join("") +
+           `</div>`;
+       } else if (field.type === "select") {
          const opts = typeof field.options === "function" ? field.options() : field.options.map(o => ({ value: o, label: o }));
          inputHtml = `<select data-key="${field.key}" ${disabled}>` +
            opts.map(o => `<option value="${o.value}" ${String(o.value) === String(value) ? "selected" : ""}>${o.label}</option>`).join("") +
@@ -445,6 +471,20 @@
    
      modalSubmit.style.display = mode === "view" ? "none" : "inline-block";
      modalBackdrop.hidden = false;
+   
+     if (entityKey === "subjects" && mode !== "view") {
+       const nameSelect = modalFields.querySelector('[data-key="name"]');
+       if (nameSelect) {
+         nameSelect.addEventListener("change", () => {
+           const defaults = subjectDefaultsForName(nameSelect.value);
+           if (!defaults) return;
+           const codeInput = modalFields.querySelector('[data-key="code"]');
+           const gradeSelect = modalFields.querySelector('[data-key="gradeLevel"]');
+           if (codeInput) codeInput.value = defaults.code;
+           if (gradeSelect) gradeSelect.value = defaults.gradeLevel;
+         });
+       }
+     }
    }
    
    function closeModal() {
@@ -459,6 +499,11 @@
      const record = mode === "edit" ? data[entityKey].find(r => r.id == id) : { id: newId() };
    
      config.fields.forEach(field => {
+       if (field.type === "multiselect") {
+         const container = modalFields.querySelector(`[data-key="${field.key}"]`);
+         record[field.key] = Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb => Number(cb.value));
+         return;
+       }
        const input = modalFields.querySelector(`[data-key="${field.key}"]`);
        let value = input.value;
        if (field.type === "number") value = Number(value);
@@ -583,8 +628,8 @@
    }
    
    function renderLoadModal() {
-     const assigned = data.subjects.filter(s => s.teacherId === currentLoadTeacherId);
-     const unassigned = data.subjects.filter(s => s.teacherId !== currentLoadTeacherId);
+     const assigned = data.subjects.filter(s => (s.teacherIds || []).includes(currentLoadTeacherId));
+     const unassigned = data.subjects.filter(s => !(s.teacherIds || []).includes(currentLoadTeacherId));
    
      loadTableBody.innerHTML = "";
      loadEmpty.hidden = assigned.length > 0;
@@ -609,7 +654,7 @@
      const subId = e.target.dataset.removeSubject;
      if (!subId) return;
      const subject = data.subjects.find(s => s.id === Number(subId));
-     subject.teacherId = null;
+     subject.teacherIds = (subject.teacherIds || []).filter(id => id !== currentLoadTeacherId);
      logActivity(`Removed ${subject.code} from a teacher's subject load.`);
      renderLoadModal();
      renderAll();
@@ -619,7 +664,8 @@
      const subId = loadAddSelect.value;
      if (!subId) return;
      const subject = data.subjects.find(s => s.id === Number(subId));
-     subject.teacherId = currentLoadTeacherId;
+     if (!subject.teacherIds) subject.teacherIds = [];
+     if (!subject.teacherIds.includes(currentLoadTeacherId)) subject.teacherIds.push(currentLoadTeacherId);
      logActivity(`Added ${subject.code} to a teacher's subject load.`);
      renderLoadModal();
      renderAll();
@@ -751,6 +797,107 @@
      document.getElementById("subjectFilterTeacher").value = "all";
      renderTable("subjects");
    });
+   
+   /* ============================================
+      USER ACCOUNTS MODALS (Admin Settings)
+      ============================================ */
+   function renderTeacherAccountsModal() {
+     const tbody = document.querySelector("#teacherAccountsTable tbody");
+     tbody.innerHTML = data.teachers.length ? data.teachers.map(t => `
+       <tr>
+         <td>${t.name}</td>
+         <td>${t.username || "—"}</td>
+         <td>${statusTag(t.status)}</td>
+         <td>
+           <label class="checkbox-option">
+             <input type="checkbox" data-admin-access="${t.id}" ${t.adminAccess ? "checked" : ""}>
+             <span>Administrator access</span>
+           </label>
+         </td>
+       </tr>`).join("") : `<tr><td colspan="4">No teacher accounts yet.</td></tr>`;
+   
+     tbody.querySelectorAll("[data-admin-access]").forEach(cb => {
+       cb.addEventListener("change", (e) => {
+         const teacher = data.teachers.find(t => t.id === Number(e.target.dataset.adminAccess));
+         teacher.adminAccess = e.target.checked;
+         logActivity(`${e.target.checked ? "Granted" : "Removed"} administrator access for ${teacher.name}.`);
+       });
+     });
+   }
+   
+   function renderStudentAccountsModal() {
+     const list = document.getElementById("studentPermissionsList");
+     const perms = [
+       { key: "studentsViewSubjects", label: "View the subjects assigned to them" },
+       { key: "studentsViewGradingCard", label: "View their own grading card" },
+       { key: "studentsViewTeachersPage", label: "View the Teachers page" },
+     ];
+     list.innerHTML = perms.map(p => `
+       <label class="checkbox-option">
+         <input type="checkbox" data-student-perm="${p.key}" ${permissions[p.key] ? "checked" : ""}>
+         <span>${p.label}</span>
+       </label>`).join("");
+   
+     list.querySelectorAll("[data-student-perm]").forEach(cb => {
+       cb.addEventListener("change", (e) => {
+         const key = e.target.dataset.studentPerm;
+         permissions[key] = e.target.checked;
+         const label = perms.find(p => p.key === key).label;
+         logActivity(`${e.target.checked ? "Allowed" : "Removed"} student access: ${label}.`);
+       });
+     });
+   
+     const tbody = document.querySelector("#studentAccountsTable tbody");
+     tbody.innerHTML = data.students.length ? data.students.map(s => `
+       <tr>
+         <td>${s.name}</td>
+         <td>${s.studentNo}</td>
+         <td>${s.gradeLevel}</td>
+         <td>${statusTag(s.status)}</td>
+       </tr>`).join("") : `<tr><td colspan="4">No student accounts yet.</td></tr>`;
+   }
+   
+   function renderAdminAccountsModal() {
+     const tbody = document.querySelector("#adminAccountsTable tbody");
+     const adminRows = data.admins.map(a => ({ name: a.name, role: a.role, username: a.username, status: a.status }));
+     const teacherAdminRows = data.teachers
+       .filter(t => t.adminAccess)
+       .map(t => ({ name: t.name, role: "Teacher", username: t.username, status: t.status }));
+     const rows = [...adminRows, ...teacherAdminRows];
+   
+     tbody.innerHTML = rows.length ? rows.map(r => `
+       <tr>
+         <td>${r.name}</td>
+         <td>${r.role}</td>
+         <td>${r.username || "—"}</td>
+         <td>${statusTag(r.status)}</td>
+       </tr>`).join("") : `<tr><td colspan="4">No admin accounts yet.</td></tr>`;
+   }
+   
+   function wireSimpleModalClose(backdropId, closeId, doneId) {
+     const backdrop = document.getElementById(backdropId);
+     const close = () => { backdrop.hidden = true; };
+     document.getElementById(closeId).addEventListener("click", close);
+     document.getElementById(doneId).addEventListener("click", close);
+     backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+   }
+   
+   document.getElementById("viewTeacherAccountsBtn").addEventListener("click", () => {
+     renderTeacherAccountsModal();
+     document.getElementById("teacherAccountsBackdrop").hidden = false;
+   });
+   document.getElementById("viewStudentAccountsBtn").addEventListener("click", () => {
+     renderStudentAccountsModal();
+     document.getElementById("studentAccountsBackdrop").hidden = false;
+   });
+   document.getElementById("viewAdminAccountsBtn").addEventListener("click", () => {
+     renderAdminAccountsModal();
+     document.getElementById("adminAccountsBackdrop").hidden = false;
+   });
+   
+   wireSimpleModalClose("teacherAccountsBackdrop", "teacherAccountsClose", "teacherAccountsDone");
+   wireSimpleModalClose("studentAccountsBackdrop", "studentAccountsClose", "studentAccountsDone");
+   wireSimpleModalClose("adminAccountsBackdrop", "adminAccountsClose", "adminAccountsDone");
    
    /* ============================================
       ADMIN SETTINGS

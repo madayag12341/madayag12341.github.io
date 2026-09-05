@@ -292,6 +292,16 @@
           <button class="btn-pen" id="resetDataBtn">Reset data</button>
         </div>
       </div>
+
+      <div class="ledger-panel accounts-panel">
+        <h2>User accounts</h2>
+        <p class="page-desc">Quick look at who's on the system, and what each role can do.</p>
+        <div class="account-btn-row">
+          <button type="button" class="btn-ghost" id="viewTeacherAccountsBtn">View teacher accounts</button>
+          <button type="button" class="btn-ghost" id="viewStudentAccountsBtn">View student accounts</button>
+          <button type="button" class="btn-ghost" id="viewAdminAccountsBtn">View admin / principal accounts</button>
+        </div>
+      </div>
     </section>
 
   </main>
@@ -375,6 +385,70 @@
 
     <div class="modal-actions">
       <button type="button" class="btn-ghost" id="gradesDone">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- TEACHER ACCOUNTS -->
+<div class="modal-backdrop" id="teacherAccountsBackdrop" hidden>
+  <div class="modal-card modal-card--wide" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2>Teacher accounts</h2>
+      <button class="modal-close" id="teacherAccountsClose" aria-label="Close">&times;</button>
+    </div>
+    <table class="ledger-table" id="teacherAccountsTable">
+      <thead>
+        <tr><th>Name</th><th>Username</th><th>Status</th><th>Admin access</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="teacherAccountsDone">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- STUDENT ACCOUNTS -->
+<div class="modal-backdrop" id="studentAccountsBackdrop" hidden>
+  <div class="modal-card modal-card--wide" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2>Student accounts</h2>
+      <button class="modal-close" id="studentAccountsClose" aria-label="Close">&times;</button>
+    </div>
+
+    <p class="grades-period-note">What a student login can do:</p>
+    <div class="checkbox-list" id="studentPermissionsList"></div>
+
+    <table class="ledger-table stacked-section" id="studentAccountsTable">
+      <thead>
+        <tr><th>Name</th><th>Student no.</th><th>Grade level</th><th>Status</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="studentAccountsDone">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN / PRINCIPAL ACCOUNTS -->
+<div class="modal-backdrop" id="adminAccountsBackdrop" hidden>
+  <div class="modal-card modal-card--wide" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2>Admin / principal accounts</h2>
+      <button class="modal-close" id="adminAccountsClose" aria-label="Close">&times;</button>
+    </div>
+
+    <table class="ledger-table" id="adminAccountsTable">
+      <thead>
+        <tr><th>Name</th><th>Role</th><th>Username</th><th>Status</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="adminAccountsDone">Close</button>
     </div>
   </div>
 </div>
