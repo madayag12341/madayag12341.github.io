@@ -41,6 +41,9 @@
       <button class="nav-item" data-page="settings">
         <span class="nav-num">06</span> Admin Settings
       </button>
+      <button class="nav-item" data-page="logs">
+        <span class="nav-num">07</span> Logs
+      </button>
     </nav>
 
     <div class="sidebar-foot">
@@ -83,18 +86,6 @@
           <span class="stat-caption">running</span>
         </div>
       </div>
-
-      <div class="ledger-panel">
-        <div class="ledger-head">
-          <h2>Recent activity</h2>
-        </div>
-        <table class="ledger-table" id="activityTable">
-          <thead>
-            <tr><th>When</th><th>What happened</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
     </section>
 
     <!-- TEACHERS -->
@@ -107,6 +98,22 @@
         </div>
         <button class="btn-seal" data-add="teachers">+ Add teacher</button>
       </header>
+
+      <div class="filter-bar">
+        <input type="text" id="teacherSearchInput" placeholder="Search by name…">
+
+        <select id="teacherFilterAdvisory" aria-label="Filter by advisory grade level">
+          <option value="all">All advisory grades</option>
+          <option value="Grade 7">Grade 7</option>
+          <option value="Grade 8">Grade 8</option>
+          <option value="Grade 9">Grade 9</option>
+          <option value="Grade 10">Grade 10</option>
+          <option value="none">No advisory</option>
+        </select>
+
+        <button type="button" class="btn-ghost" id="teacherSearchClear">Clear</button>
+      </div>
+
       <div class="ledger-panel">
         <table class="ledger-table" id="table-teachers">
           <thead>
@@ -174,7 +181,11 @@
           <h1>Subjects</h1>
           <p class="page-desc">What's being taught, and by whom.</p>
         </div>
-        <button class="btn-seal" data-add="subjects">+ Add subject</button>
+        <div class="page-head-actions">
+          <button class="btn-seal" type="button" id="deleteSubjectBtn">Delete subject</button>
+          <button class="btn-seal" type="button" id="renameSubjectBtn">Rename subject</button>
+          <button class="btn-seal" data-add="subjects">+ Add subject</button>
+        </div>
       </header>
 
       <div class="filter-bar">
@@ -204,7 +215,7 @@
         <table class="ledger-table" id="table-subjects">
           <thead>
             <tr>
-              <th>Code</th><th>Subject</th><th>Units</th><th>Grade level</th><th>Teacher</th><th></th>
+              <th>Code</th><th>Subject</th><th>Units</th><th>Grade level</th><th>Teacher</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -221,13 +232,39 @@
           <h1>Sections</h1>
           <p class="page-desc">How students are grouped, and who advises each group.</p>
         </div>
-        <button class="btn-seal" data-add="sections">+ Add section</button>
+        <div class="page-head-actions">
+          <button class="btn-seal" type="button" id="deleteSectionBtn">Delete section</button>
+          <button class="btn-seal" type="button" id="editSectionBtn">Edit section</button>
+          <button class="btn-seal" data-add="sections">+ Add section</button>
+        </div>
       </header>
+
+      <div class="filter-bar">
+        <select id="sectionFilterSection" aria-label="Filter by section">
+          <option value="all">All sections</option>
+        </select>
+
+        <select id="sectionFilterGrade" aria-label="Filter by grade level">
+          <option value="all">All grade levels</option>
+          <option value="Grade 7">Grade 7</option>
+          <option value="Grade 8">Grade 8</option>
+          <option value="Grade 9">Grade 9</option>
+          <option value="Grade 10">Grade 10</option>
+        </select>
+
+        <select id="sectionFilterAdviser" aria-label="Filter by adviser">
+          <option value="all">All advisers</option>
+          <option value="none">Unassigned</option>
+        </select>
+
+        <button type="button" class="btn-ghost" id="sectionSearchClear">Clear</button>
+      </div>
+
       <div class="ledger-panel">
         <table class="ledger-table" id="table-sections">
           <thead>
             <tr>
-              <th>Section</th><th>Grade level</th><th>Adviser</th><th>Students</th><th></th>
+              <th>Section</th><th>Grade level</th><th>Adviser</th><th>Students</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -304,6 +341,36 @@
       </div>
     </section>
 
+    <!-- LOGS -->
+    <section class="page" id="page-logs">
+      <header class="page-head">
+        <div>
+          <p class="page-eyebrow">Activity</p>
+          <h1>Logs</h1>
+          <p class="page-desc">Every add, edit, and delete recorded across the system.</p>
+        </div>
+      </header>
+
+      <div class="filter-bar">
+        <select id="logsFilterCategory" aria-label="Filter by category">
+          <option value="all">All logs</option>
+          <option value="Student">Student</option>
+          <option value="Teacher">Teacher</option>
+          <option value="Admin">Admin</option>
+        </select>
+      </div>
+
+      <div class="ledger-panel">
+        <table class="ledger-table" id="logsTable">
+          <thead>
+            <tr><th>Date</th><th>Time</th><th>Name</th><th>Category</th><th>Action</th><th>Details</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p class="empty-note" id="empty-logs" hidden>No logs for this filter yet.</p>
+      </div>
+    </section>
+
   </main>
 </div>
 
@@ -361,6 +428,170 @@
 
     <div class="modal-actions">
       <button type="button" class="btn-ghost" id="loadDone">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE SUBJECT (Subjects page only) -->
+<div class="modal-backdrop" id="deleteSubjectBackdrop" hidden>
+  <div class="modal-card modal-card--small" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2>Delete subject</h2>
+      <button class="modal-close" id="deleteSubjectClose" aria-label="Close">&times;</button>
+    </div>
+
+    <p class="confirm-text">Type a subject code, or pick a subject below — either one fills in the other.</p>
+
+    <div class="field-grid">
+      <label class="field field--full">
+        <span>Subject code</span>
+        <input type="text" id="ds-code" placeholder="e.g. ENG-701" autocomplete="off">
+      </label>
+      <label class="field field--full">
+        <span>Subject</span>
+        <select id="ds-subject">
+          <option value="">— Select subject —</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="deleteSubjectCancel">Cancel</button>
+      <button type="button" class="btn-pen" id="deleteSubjectConfirm">Delete subject</button>
+    </div>
+  </div>
+</div>
+
+<!-- RENAME SUBJECT (Subjects page only) -->
+<div class="modal-backdrop" id="renameSubjectBackdrop" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2>Rename subject</h2>
+      <button class="modal-close" id="renameSubjectClose" aria-label="Close">&times;</button>
+    </div>
+
+    <p class="confirm-text">Type a subject code, or pick a subject below — either one fills in the other.</p>
+
+    <div class="field-grid">
+      <label class="field field--full">
+        <span>Subject code</span>
+        <input type="text" id="rs-code" placeholder="e.g. ENG-701" autocomplete="off">
+      </label>
+      <label class="field field--full">
+        <span>Subject</span>
+        <select id="rs-subject">
+          <option value="">— Select subject —</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="field-grid stacked-section" id="renameSubjectFields" hidden>
+      <label class="field field--full">
+        <span>New subject code</span>
+        <input type="text" id="rs-newCode" autocomplete="off">
+      </label>
+      <label class="field field--full">
+        <span>New subject name</span>
+        <input type="text" id="rs-newName" autocomplete="off">
+      </label>
+      <label class="field">
+        <span>Units</span>
+        <input type="number" id="rs-newUnits" min="1">
+      </label>
+      <label class="field">
+        <span>Grade level</span>
+        <select id="rs-newGrade">
+          <option value="">— None —</option>
+          <option>Grade 7</option>
+          <option>Grade 8</option>
+          <option>Grade 9</option>
+          <option>Grade 10</option>
+        </select>
+      </label>
+      <label class="field field--full">
+        <span>Teacher</span>
+        <select id="rs-newTeacher"></select>
+      </label>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="renameSubjectCancel">Cancel</button>
+      <button type="button" class="btn-seal" id="renameSubjectSave" disabled>Save changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE SECTION (Sections page only) -->
+<div class="modal-backdrop" id="deleteSectionBackdrop" hidden>
+  <div class="modal-card modal-card--small" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2>Delete section</h2>
+      <button class="modal-close" id="deleteSectionClose" aria-label="Close">&times;</button>
+    </div>
+
+    <p class="confirm-text">Pick a section to remove.</p>
+
+    <div class="field-grid">
+      <label class="field field--full">
+        <span>Section</span>
+        <select id="delsec-section">
+          <option value="">— Select section —</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="deleteSectionCancel">Cancel</button>
+      <button type="button" class="btn-pen" id="deleteSectionConfirm">Delete section</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT SECTION (Sections page only) -->
+<div class="modal-backdrop" id="editSectionBackdrop" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2>Edit section</h2>
+      <button class="modal-close" id="editSectionClose" aria-label="Close">&times;</button>
+    </div>
+
+    <p class="confirm-text">Pick a section, then update its details below.</p>
+
+    <div class="field-grid">
+      <label class="field field--full">
+        <span>Section</span>
+        <select id="es-section">
+          <option value="">— Select section —</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="field-grid stacked-section" id="editSectionFields" hidden>
+      <label class="field">
+        <span>Grade level</span>
+        <select id="es-newGrade">
+          <option value="">— None —</option>
+          <option>Grade 7</option>
+          <option>Grade 8</option>
+          <option>Grade 9</option>
+          <option>Grade 10</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Section name</span>
+        <input type="text" id="es-newName" autocomplete="off">
+      </label>
+      <label class="field field--full">
+        <span>Adviser</span>
+        <select id="es-newAdviser">
+          <option value="">— none —</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="editSectionCancel">Cancel</button>
+      <button type="button" class="btn-seal" id="editSectionSave" disabled>Save changes</button>
     </div>
   </div>
 </div>

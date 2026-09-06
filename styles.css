@@ -197,6 +197,12 @@
     color: var(--ink-soft);
     max-width: 46ch;
   }
+
+  .page-head-actions {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+  }
   
   /* ============================================
      STAT TILES (home)
@@ -274,17 +280,25 @@
     padding: 13px 20px;
     border-bottom: 1px solid var(--paper-line);
     font-size: 0.92rem;
-    vertical-align: middle;
+    vertical-align: top;
   }
   
   .ledger-table tbody tr:last-child td { border-bottom: none; }
   
   .ledger-table tbody tr:hover { background: rgba(185, 134, 47, 0.06); }
   
+  /* Keep these two columns on one line — wrapping (e.g. "MG-2026-\n0001" or a
+     phone number breaking mid-digit) is what caused rows to visually drift. */
+  #table-students td:nth-child(1),
+  #table-teachers td:nth-child(3) {
+    white-space: nowrap;
+  }
+  
   .row-actions {
     display: flex;
     gap: 14px;
     justify-content: flex-end;
+    align-items: flex-start;
     white-space: nowrap;
   }
   
@@ -330,6 +344,7 @@
     cursor: pointer;
     font-size: inherit;
     font-family: inherit;
+    white-space: nowrap;
   }
   .link-count:hover { color: var(--gold); }
   
