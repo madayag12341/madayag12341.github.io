@@ -591,6 +591,7 @@
   }
   
   .field input, .field select {
+    width: 100%;
     padding: 9px 11px;
     border: 1px solid var(--paper-line);
     border-radius: var(--radius);
