@@ -657,6 +657,56 @@
    });
    
    /* ============================================
+      SIDEBAR — collapse toggle + drag-to-resize
+      ============================================ */
+   const sidebar = document.getElementById("sidebar");
+   const sidebarToggle = document.getElementById("sidebarToggle");
+   const sidebarResizeHandle = document.getElementById("sidebarResizeHandle");
+   const SIDEBAR_MIN_WIDTH = 180;
+   const SIDEBAR_MAX_WIDTH = 360;
+   const SIDEBAR_DEFAULT_WIDTH = 232;
+   let sidebarWidthBeforeCollapse = SIDEBAR_DEFAULT_WIDTH;
+   
+   sidebarToggle.addEventListener("click", () => {
+     const collapsing = !sidebar.classList.contains("is-collapsed");
+     if (collapsing) {
+       // Remember the current width so expanding restores it instead of snapping to default.
+       sidebarWidthBeforeCollapse = sidebar.getBoundingClientRect().width;
+     }
+     sidebar.classList.toggle("is-collapsed");
+     if (!collapsing) {
+       sidebar.style.setProperty("--sidebar-width", `${sidebarWidthBeforeCollapse}px`);
+     }
+     sidebarToggle.setAttribute("aria-expanded", String(!collapsing));
+     sidebarToggle.title = collapsing ? "Expand navigation" : "Collapse navigation";
+     sidebarToggle.setAttribute("aria-label", collapsing ? "Expand navigation" : "Collapse navigation");
+   });
+   
+   let isResizingSidebar = false;
+   
+   sidebarResizeHandle.addEventListener("pointerdown", (e) => {
+     if (sidebar.classList.contains("is-collapsed")) return;
+     isResizingSidebar = true;
+     sidebarResizeHandle.classList.add("is-dragging");
+     sidebarResizeHandle.setPointerCapture(e.pointerId);
+     e.preventDefault();
+   });
+   
+   sidebarResizeHandle.addEventListener("pointermove", (e) => {
+     if (!isResizingSidebar) return;
+     const sidebarLeft = sidebar.getBoundingClientRect().left;
+     const newWidth = Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, e.clientX - sidebarLeft));
+     sidebar.style.setProperty("--sidebar-width", `${newWidth}px`);
+   });
+   
+   function stopSidebarResize() {
+     isResizingSidebar = false;
+     sidebarResizeHandle.classList.remove("is-dragging");
+   }
+   sidebarResizeHandle.addEventListener("pointerup", stopSidebarResize);
+   sidebarResizeHandle.addEventListener("pointercancel", stopSidebarResize);
+   
+   /* ============================================
       LOGS PAGE
       ============================================ */
    document.getElementById("logsFilterCategory").addEventListener("change", (e) => {
