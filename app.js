@@ -199,9 +199,18 @@
      delete student._baseQ2;
    });
    
+   // Philippine school years run roughly June–March, so from June onward the
+   // school year is "this year–next year"; before June it's "last year–this year".
+   function computeCurrentSchoolYear() {
+     const now = new Date();
+     const year = now.getFullYear();
+     const startYear = now.getMonth() >= 5 ? year : year - 1; // getMonth() is 0-indexed, 5 = June
+     return `${startYear}–${startYear + 1}`;
+   }
+   
    let settings = {
      schoolName: "Meridian Grade School",
-     schoolYear: "2026–2027",
+     schoolYear: computeCurrentSchoolYear(),
      period: "2nd Quarter",
      scale: "percentage",
      passing: 75,
@@ -1303,15 +1312,42 @@
    const gradesTitle = document.getElementById("gradesTitle");
    const gradesPeriodNote = document.getElementById("gradesPeriodNote");
    const gradesTableBody = document.querySelector("#gradesTable tbody");
+   let currentGradesStudentId = null;
+   
+   const QUARTER_ORDER = ["1st Quarter", "2nd Quarter", "3rd Quarter", "4th Quarter"];
+   const QUARTERS = [
+     { label: "1st Quarter", key: "q1" },
+     { label: "2nd Quarter", key: "q2" },
+     { label: "3rd Quarter", key: "q3" },
+     { label: "4th Quarter", key: "q4" },
+   ];
+   
+   // Once the school has moved on to a later quarter, earlier quarters'
+   // grades are locked and can no longer be edited.
+   function isQuarterLocked(quarterLabel) {
+     const currentIdx = QUARTER_ORDER.indexOf(settings.period);
+     const thisIdx = QUARTER_ORDER.indexOf(quarterLabel);
+     if (currentIdx === -1 || thisIdx === -1) return false;
+     return thisIdx < currentIdx;
+   }
    
    function fmtGrade(value) {
      return typeof value === "number" ? value : `<span class="rating-pending">Pending</span>`;
    }
    
+   function gradeCellHtml(quarterLabel, quarterKey, value) {
+     const locked = isQuarterLocked(quarterLabel);
+     const displayValue = typeof value === "number" ? value : "";
+     return `<input type="number" class="grade-input" min="0" max="100" step="1"
+       data-quarter="${quarterKey}" value="${displayValue}" placeholder="—"
+       ${locked ? `disabled title="Locked — ${quarterLabel} has already passed."` : ""}>`;
+   }
+   
    function openGradesModal(studentId) {
+     currentGradesStudentId = studentId;
      const student = data.students.find(s => s.id === studentId);
      gradesTitle.textContent = `Grading card sheet — ${student.name}`;
-     gradesPeriodNote.textContent = `Currently on ${settings.period}.`;
+     gradesPeriodNote.textContent = `Currently on ${settings.period}. Earlier quarters are locked and can no longer be edited.`;
    
      const subjectIds = Object.keys(student.grades || {});
    
@@ -1321,22 +1357,70 @@
        const g = student.grades[idStr];
        const final = computeFinalRating(g);
        return `
-         <tr>
+         <tr data-subject-row="${subjectId}">
            <td>${subject ? `${subject.code} — ${subject.name}` : "Unknown subject"}</td>
-           <td>${fmtGrade(g.q1)}</td>
-           <td>${fmtGrade(g.q2)}</td>
-           <td>${fmtGrade(g.q3)}</td>
-           <td>${fmtGrade(g.q4)}</td>
-           <td>${fmtGrade(final)}</td>
+           ${QUARTERS.map(q => `<td>${gradeCellHtml(q.label, q.key, g[q.key])}</td>`).join("")}
+           <td class="final-rating-cell">${fmtGrade(final)}</td>
          </tr>`;
      }).join("") + `
        <tr class="row-final">
          <td colspan="5">General average</td>
-         <td>${fmtGrade(computeGeneralAverage(student))}</td>
+         <td class="general-average-cell">${fmtGrade(computeGeneralAverage(student))}</td>
        </tr>`;
    
      gradesBackdrop.hidden = false;
    }
+   
+   // Live-update a row's Final rating as its own quarter inputs change (the
+   // General average only gets recomputed on Save, once everything commits).
+   gradesTableBody.addEventListener("input", (e) => {
+     if (!e.target.matches(".grade-input")) return;
+     const row = e.target.closest("tr[data-subject-row]");
+     if (!row) return;
+     const g = {};
+     row.querySelectorAll(".grade-input").forEach(inp => {
+       const v = inp.value.trim();
+       if (v !== "") g[inp.dataset.quarter] = Number(v);
+     });
+     const cell = row.querySelector(".final-rating-cell");
+     if (cell) cell.innerHTML = fmtGrade(computeFinalRating(g));
+   });
+   
+   document.getElementById("gradesSaveBtn").addEventListener("click", () => {
+     const saveBtn = document.getElementById("gradesSaveBtn");
+     saveBtn.disabled = true;
+   
+     const student = data.students.find(s => s.id === currentGradesStudentId);
+     if (!student) { saveBtn.disabled = false; return; }
+   
+     let outOfRange = false;
+     gradesTableBody.querySelectorAll("tr[data-subject-row]").forEach(row => {
+       const subjectId = row.dataset.subjectRow;
+       if (!student.grades[subjectId]) student.grades[subjectId] = {};
+       row.querySelectorAll(".grade-input:not(:disabled)").forEach(inp => {
+         const quarter = inp.dataset.quarter;
+         const raw = inp.value.trim();
+         if (raw === "") {
+           delete student.grades[subjectId][quarter];
+           return;
+         }
+         const num = Number(raw);
+         if (Number.isNaN(num) || num < 0 || num > 100) { outOfRange = true; return; }
+         student.grades[subjectId][quarter] = num;
+       });
+     });
+   
+     if (outOfRange) {
+       showToast("Grades must be between 0 and 100.", "warning");
+       saveBtn.disabled = false;
+       return;
+     }
+   
+     logActivity(`Updated grades for ${student.name} (${settings.period}).`, "Student", "Edit", student.name);
+     showToast("Grades saved.", "success");
+     openGradesModal(currentGradesStudentId); // refresh with recomputed values
+     setTimeout(() => { saveBtn.disabled = false; }, 400);
+   });
    
    function closeGradesModal() { gradesBackdrop.hidden = true; }
    document.getElementById("gradesClose").addEventListener("click", closeGradesModal);
@@ -1561,7 +1645,20 @@
       ADMIN SETTINGS
       ============================================ */
    function loadSettingsForm() {
-     document.getElementById("set-schoolYear").value = settings.schoolYear;
+     const schoolYearSelect = document.getElementById("set-schoolYear");
+     const currentSchoolYear = computeCurrentSchoolYear();
+     let options = "";
+     for (let y = 1990; y <= 2050; y++) {
+       options += `<option value="${y}–${y + 1}">${y}–${y + 1}</option>`;
+     }
+     schoolYearSelect.innerHTML = options;
+     // Locked to whatever school year today's date actually falls in — the
+     // full 1990–2050 range exists in the list, but it can't be changed away
+     // from the current one.
+     schoolYearSelect.value = currentSchoolYear;
+     schoolYearSelect.title = "School year is set automatically from today's date and can't be changed.";
+     settings.schoolYear = currentSchoolYear;
+   
      document.getElementById("set-period").value = settings.period;
      document.getElementById("set-scale").value = settings.scale;
      document.getElementById("set-passing").value = settings.passing;
@@ -1573,10 +1670,12 @@
      const saveSettingsBtn = document.getElementById("saveSettingsBtn");
      saveSettingsBtn.disabled = true;
    
-     const schoolYear = document.getElementById("set-schoolYear").value.trim();
+     // School year is locked to today's date, not admin-editable, so it's
+     // always recomputed fresh here rather than read from the (disabled) select.
+     const schoolYear = computeCurrentSchoolYear();
      const passing = document.getElementById("set-passing").value;
    
-     if (!schoolYear || passing === "") {
+     if (passing === "") {
        showToast("Please fill in all required settings fields.", "warning");
        saveSettingsBtn.disabled = false;
        return;
