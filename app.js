@@ -1057,6 +1057,17 @@
        }
      }
    
+     if (entityKey === "subjects") {
+       // A subject's code already encodes its name + grade level, so the same
+       // code showing up twice means the exact same subject was added again.
+       const duplicateSubject = data.subjects.find(s => s.id !== draft.id && s.code === draft.code);
+       if (duplicateSubject) {
+         showToast("This subject already exists for that grade level.", "error");
+         modalSubmit.disabled = false;
+         return;
+       }
+     }
+   
      if (mode === "add" && (entityKey === "teachers" || entityKey === "students") && !draft.password) {
        draft.password = generatePassword();
      }
