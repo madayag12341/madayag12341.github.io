@@ -497,6 +497,14 @@
   }
   .btn-seal:hover { background: var(--gold-dark); }
   
+  .btn-seal:disabled {
+    background: #9a9a9a;
+    color: #eee;
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.85;
+  }
+  
   .btn-pen {
     background: var(--pen-red);
     color: #fff;
@@ -761,9 +769,13 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--good);
+    background: rgba(255, 255, 255, 0.85);
     flex-shrink: 0;
   }
+  
+  .toast--success { background: var(--good); }
+  .toast--error { background: var(--pen-red); }
+  .toast--warning { background: var(--gold-dark); }
   
   @media (max-width: 640px) {
     .toast-container { top: 12px; right: 12px; left: 12px; align-items: stretch; }
