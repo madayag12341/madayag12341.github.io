@@ -45,7 +45,7 @@
   }
   
   .sidebar {
-    width: var(--sidebar-width, 232px);
+    width: 232px;
     flex-shrink: 0;
     background: var(--chalkboard);
     color: #EDE9DC;
@@ -80,18 +80,22 @@
     gap: 0;
   }
   
-  .sidebar.is-collapsed .sidebar-resize-handle {
-    display: none;
+  .crest {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid rgba(237, 233, 220, 0.18);
+    margin-bottom: 20px;
   }
   
   .sidebar-toggle {
-    align-self: flex-end;
+    margin-left: auto;
     background: none;
     border: none;
     color: #CFCABA;
     cursor: pointer;
     padding: 6px;
-    margin-bottom: 8px;
     border-radius: var(--radius);
     display: flex;
     align-items: center;
@@ -102,32 +106,7 @@
   .sidebar-toggle:hover { background: rgba(237, 233, 220, 0.1); color: #fff; }
   .sidebar-toggle svg { width: 18px; height: 18px; }
   
-  .sidebar.is-collapsed .sidebar-toggle { align-self: center; }
-  
-  /* Drag handle for resizing the sidebar's width */
-  .sidebar-resize-handle {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 6px;
-    height: 100%;
-    cursor: col-resize;
-    background: transparent;
-  }
-  
-  .sidebar-resize-handle:hover,
-  .sidebar-resize-handle.is-dragging {
-    background: rgba(185, 134, 47, 0.45);
-  }
-  
-  .crest {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding-bottom: 24px;
-    border-bottom: 1px solid rgba(237, 233, 220, 0.18);
-    margin-bottom: 20px;
-  }
+  .sidebar.is-collapsed .sidebar-toggle { margin-left: 0; }
   
   .crest-mark {
     width: 40px;
@@ -749,7 +728,6 @@
     .stat-row { grid-template-columns: 1fr 1fr; }
     .field-grid { grid-template-columns: 1fr; }
     .page-head { flex-direction: column; align-items: flex-start; }
-    .sidebar-resize-handle { display: none; }
     /* On mobile, collapsing hides the whole nav row (no icon-only rail —
        there's no vertical space to save on a horizontal bar), leaving just
        the crest + toggle so the section can be tucked away entirely. */
