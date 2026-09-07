@@ -336,6 +336,17 @@
    function teacherOptions() {
      return [{ value: "", label: "— none —" }, ...data.teachers.map(t => ({ value: t.id, label: t.name }))];
    }
+   // Teachers who aren't already the adviser of some other section — so the
+   // Adviser dropdown on Add/Edit Section doesn't offer someone already
+   // spoken for. `keepId` (the section being edited, if any) makes sure its
+   // own current adviser still shows up in its own dropdown.
+   function unassignedTeacherOptions(keepId = null) {
+     const takenBy = new Set(
+       data.sections.filter(s => s.id !== keepId && s.adviserId != null).map(s => s.adviserId)
+     );
+     const pool = data.teachers.filter(t => !takenBy.has(t.id));
+     return [{ value: "", label: "— none —" }, ...pool.map(t => ({ value: t.id, label: t.name }))];
+   }
    function sectionOptionsForGrade(gradeLevel) {
      const pool = gradeLevel ? data.sections.filter(s => s.gradeLevel === gradeLevel) : data.sections;
      return [{ value: "", label: "— none —" }, ...pool.map(s => ({ value: s.id, label: s.name }))];
@@ -884,9 +895,12 @@
            <input type="hidden" data-key="adviserId" value="${adviserId ?? ''}">`;
        }
        function unlockAdviser() {
-         const opts = teacherOptions();
+         const opts = unassignedTeacherOptions(row ? row.id : null);
          adviserWrap.innerHTML = `<span>Adviser</span>
            <select data-key="adviserId">${opts.map(o => `<option value="${o.value}">${o.label}</option>`).join("")}</select>`;
+         if (row && row.adviserId != null) {
+           adviserWrap.querySelector('[data-key="adviserId"]').value = row.adviserId;
+         }
        }
    
        // If what's currently typed exactly matches another already-existing
