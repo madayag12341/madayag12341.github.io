@@ -30,22 +30,62 @@
 
     <nav class="nav">
       <button class="nav-item is-active" data-page="home">
-        <span class="nav-num">01</span> <span class="nav-label">Dashboard</span>
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 11.5 12 4l9 7.5"></path>
+            <path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"></path>
+          </svg>
+        </span>
+        <span class="nav-label">Dashboard</span>
       </button>
       <button class="nav-item" data-page="teachers">
-        <span class="nav-num">02</span> <span class="nav-label">Teachers</span>
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+        </span>
+        <span class="nav-label">Teachers</span>
       </button>
       <button class="nav-item" data-page="students">
-        <span class="nav-num">03</span> <span class="nav-label">Students</span>
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 10v6M2 10l10-5 10 5-10 5-10-5Z"></path>
+            <path d="M6 12v5c0 1.657 2.686 3 6 3s6-1.343 6-3v-5"></path>
+          </svg>
+        </span>
+        <span class="nav-label">Students</span>
       </button>
       <button class="nav-item" data-page="subjects">
-        <span class="nav-num">04</span> <span class="nav-label">Subjects</span>
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"></path>
+          </svg>
+        </span>
+        <span class="nav-label">Subjects</span>
       </button>
       <button class="nav-item" data-page="sections">
-        <span class="nav-num">05</span> <span class="nav-label">Sections</span>
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
+            <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
+            <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
+            <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
+          </svg>
+        </span>
+        <span class="nav-label">Sections</span>
       </button>
       <button class="nav-item" data-page="settings">
-        <span class="nav-num">06</span> <span class="nav-label">Admin Settings</span>
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path>
+          </svg>
+        </span>
+        <span class="nav-label">Admin Settings</span>
       </button>
     </nav>
 
@@ -306,13 +346,18 @@
         </div>
       </header>
 
+      <div class="ledger-panel accounts-panel">
+        <h2>User accounts</h2>
+        <p class="page-desc">Quick look at who's on the system, and what each role can do.</p>
+        <div class="account-btn-row">
+          <button type="button" class="btn-ghost" id="viewTeacherAccountsBtn">View teacher accounts</button>
+          <button type="button" class="btn-ghost" id="viewStudentAccountsBtn">View student accounts</button>
+        </div>
+      </div>
+
       <div class="ledger-panel settings-panel">
         <form id="settingsForm" novalidate>
           <div class="field-grid">
-            <label class="field">
-              <span>School name</span>
-              <input type="text" id="set-schoolName" required>
-            </label>
             <label class="field">
               <span>School year</span>
               <input type="text" id="set-schoolYear" placeholder="2026–2027" required>
@@ -351,16 +396,6 @@
             <p>Puts every list back to its starting sample records. Cannot be undone.</p>
           </div>
           <button class="btn-pen" id="resetDataBtn">Reset data</button>
-        </div>
-      </div>
-
-      <div class="ledger-panel accounts-panel">
-        <h2>User accounts</h2>
-        <p class="page-desc">Quick look at who's on the system, and what each role can do.</p>
-        <div class="account-btn-row">
-          <button type="button" class="btn-ghost" id="viewTeacherAccountsBtn">View teacher accounts</button>
-          <button type="button" class="btn-ghost" id="viewStudentAccountsBtn">View student accounts</button>
-          <button type="button" class="btn-ghost" id="viewAdminAccountsBtn">View admin / principal accounts</button>
         </div>
       </div>
     </section>
@@ -529,29 +564,6 @@
 
     <div class="modal-actions">
       <button type="button" class="btn-ghost" id="studentAccountsDone">Close</button>
-    </div>
-  </div>
-</div>
-
-<!-- ADMIN / PRINCIPAL ACCOUNTS -->
-<div class="modal-backdrop" id="adminAccountsBackdrop" hidden>
-  <div class="modal-card modal-card--wide" role="dialog" aria-modal="true">
-    <div class="modal-head">
-      <h2>Admin / principal accounts</h2>
-      <button class="modal-close" id="adminAccountsClose" aria-label="Close">&times;</button>
-    </div>
-
-    <div class="grades-table-wrap">
-      <table class="ledger-table" id="adminAccountsTable">
-        <thead>
-          <tr><th>Name</th><th>Role</th><th>Username</th><th>Status</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-
-    <div class="modal-actions">
-      <button type="button" class="btn-ghost" id="adminAccountsDone">Close</button>
     </div>
   </div>
 </div>
