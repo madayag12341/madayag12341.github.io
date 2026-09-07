@@ -62,6 +62,9 @@
      "Dapdap", "Tanguile",
    ];
    const GRADE_LEVELS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10"];
+   // Typical starting age per grade level, used only to generate plausible
+   // sample birthdates (e.g. a Grade 7 student is usually ~12–13 years old).
+   const GRADE_BIRTH_YEAR_BASE = { "Grade 7": 2014, "Grade 8": 2013, "Grade 9": 2012, "Grade 10": 2011 };
    const SECTIONS_PER_GRADE = { "Grade 7": 4, "Grade 8": 4, "Grade 9": 3, "Grade 10": 4 };
    const STUDENTS_PER_SECTION = 10;
 
@@ -136,13 +139,22 @@
      for (let i = 0; i < STUDENTS_PER_SECTION; i++) {
        const first = STUDENT_FIRST_NAMES[studentSeq % STUDENT_FIRST_NAMES.length];
        const last = STUDENT_LAST_NAMES[(studentSeq * 7 + Math.floor(studentSeq / STUDENT_FIRST_NAMES.length)) % STUDENT_LAST_NAMES.length];
-       const name = `${first} ${last}`;
+       const middle = STUDENT_LAST_NAMES[(studentSeq * 11 + 5) % STUDENT_LAST_NAMES.length];
+       const name = buildStudentFullName(first, middle, last);
+       const baseYear = GRADE_BIRTH_YEAR_BASE[section.gradeLevel] - (studentSeq % 2);
+       const birthMonth = String(1 + (studentSeq * 7) % 12).padStart(2, "0");
+       const birthDay = String(1 + (studentSeq * 13) % 28).padStart(2, "0");
+       const birthDate = `${baseYear}-${birthMonth}-${birthDay}`;
        const baseQ1 = 74 + (studentSeq % 21);
        const baseQ2 = baseQ1 + ((studentSeq % 5) - 2);
        data.students.push({
          id: newId(),
-         studentNo: `MG-2026-${String(1 + studentSeq).padStart(4, "0")}`,
+         studentNo: generateStudentNoFromBirthdate(birthDate),
+         firstName: first,
+         middleName: middle,
+         lastName: last,
          name,
+         birthDate,
          gradeLevel: section.gradeLevel,
          sectionId: section.id,
          status: (studentSeq % 13 === 0) ? "Inactive" : "Active",
@@ -240,10 +252,16 @@
      students: {
        label: "student",
        fields: [
-         { key: "studentNo", label: "Student no.", type: "text", required: true },
-         { key: "name", label: "Full name", type: "text", required: true },
+         { key: "firstName", label: "First name", type: "text", required: true },
+         { key: "middleName", label: "Middle name", type: "text" },
+         { key: "lastName", label: "Last name", type: "text", required: true },
+         { key: "birthDate", label: "Birthdate", type: "date", required: true },
+         { key: "studentNo", label: "Student no.", type: "text", required: true, locked: true },
          { key: "gradeLevel", label: "Grade level", type: "select", options: ["Grade 7", "Grade 8", "Grade 9", "Grade 10"] },
-         { key: "sectionId", label: "Section", type: "select", options: () => sectionOptions() },
+         { key: "sectionId", label: "Section", type: "select", options: () => {
+             const gradeSelect = modalFields.querySelector('[data-key="gradeLevel"]');
+             return sectionOptionsForGrade(gradeSelect ? gradeSelect.value : null);
+           } },
          { key: "status", label: "Status", type: "select", options: ["Active", "Inactive"] },
          { key: "username", label: "Username", type: "text" },
          { key: "password", label: "Password", type: "password" },
@@ -295,8 +313,41 @@
    function teacherOptions() {
      return [{ value: "", label: "— none —" }, ...data.teachers.map(t => ({ value: t.id, label: t.name }))];
    }
-   function sectionOptions() {
-     return [{ value: "", label: "— none —" }, ...data.sections.map(s => ({ value: s.id, label: s.name }))];
+   function sectionOptionsForGrade(gradeLevel) {
+     const pool = gradeLevel ? data.sections.filter(s => s.gradeLevel === gradeLevel) : data.sections;
+     return [{ value: "", label: "— none —" }, ...pool.map(s => ({ value: s.id, label: s.name }))];
+   }
+   // Philippine naming convention: First name, middle-initial (from the middle
+   // name), then last name — e.g. "Ava R. Bernal".
+   function buildStudentFullName(firstName, middleName, lastName) {
+     const first = (firstName || "").trim();
+     const middle = (middleName || "").trim();
+     const last = (lastName || "").trim();
+     const middlePart = middle ? ` ${middle.charAt(0).toUpperCase()}.` : "";
+     return `${first}${middlePart} ${last}`.replace(/\s+/g, " ").trim();
+   }
+   // Student numbers are derived from the birthdate (MG-YYYYMMDD-NN). If that
+   // exact number is already taken (e.g. another student shares the same
+   // birthdate), the sequence suffix increments until a free one is found —
+   // so generated numbers can never collide.
+   function generateStudentNoFromBirthdate(birthDateStr, excludeId = null) {
+     if (!birthDateStr) return "";
+     const compact = birthDateStr.replace(/-/g, "");
+     let seq = 1;
+     let candidate;
+     do {
+       candidate = `MG-${compact}-${String(seq).padStart(2, "0")}`;
+       seq++;
+     } while (data.students.some(s => s.studentNo === candidate && s.id !== excludeId));
+     return candidate;
+   }
+   function normalizeNamePart(str) {
+     return (str || "").trim().toLowerCase().replace(/\s+/g, " ");
+   }
+   function studentsHaveSameName(a, b) {
+     return normalizeNamePart(a.firstName) === normalizeNamePart(b.firstName) &&
+       normalizeNamePart(a.middleName) === normalizeNamePart(b.middleName) &&
+       normalizeNamePart(a.lastName) === normalizeNamePart(b.lastName);
    }
    // When gradeLevel is passed, only subject names that belong to that grade are
    // listed (e.g. picking "Grade 7" narrows this to English 7, Math 7, etc.).
@@ -848,6 +899,32 @@
          syncAdviser();
        });
      }
+   
+     if (entityKey === "students" && mode !== "view") {
+       const gradeSelect = modalFields.querySelector('[data-key="gradeLevel"]');
+       const sectionSelect = modalFields.querySelector('[data-key="sectionId"]');
+       const birthDateInput = modalFields.querySelector('[data-key="birthDate"]');
+       const studentNoInput = modalFields.querySelector('[data-key="studentNo"]');
+   
+       // Picking a grade level narrows the section list down to just that
+       // grade's sections. If the currently selected section doesn't belong to
+       // the new grade, it naturally resets to "— none —".
+       gradeSelect.addEventListener("change", () => {
+         const currentSection = sectionSelect.value;
+         const opts = sectionOptionsForGrade(gradeSelect.value || null);
+         sectionSelect.innerHTML = opts.map(o =>
+           `<option value="${o.value}" ${String(o.value) === String(currentSection) ? "selected" : ""}>${o.label}</option>`
+         ).join("");
+       });
+   
+       // Picking a birthdate auto-generates the student number from it,
+       // guaranteed not to collide with any existing student's number.
+       birthDateInput.addEventListener("change", () => {
+         studentNoInput.value = birthDateInput.value
+           ? generateStudentNoFromBirthdate(birthDateInput.value, id)
+           : "";
+       });
+     }
    }
    
    function closeModal() {
@@ -859,36 +936,58 @@
      e.preventDefault();
      const { entityKey, mode, id } = modalState;
      const config = entityConfig[entityKey];
-     const record = mode === "edit" ? data[entityKey].find(r => r.id == id) : { id: newId() };
+     const existingRecord = mode === "edit" ? data[entityKey].find(r => r.id == id) : null;
+     // Build into a fresh draft object first (never the live record) so that if
+     // validation fails below, nothing already on screen/in data gets mutated.
+     const draft = mode === "edit" ? { ...existingRecord } : { id: newId() };
    
      config.fields.forEach(field => {
        if (field.type === "multiselect") {
          const container = modalFields.querySelector(`[data-key="${field.key}"]`);
-         record[field.key] = Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb => Number(cb.value));
+         draft[field.key] = Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb => Number(cb.value));
          return;
        }
        const input = modalFields.querySelector(`[data-key="${field.key}"]`);
        let value = input.value;
        if (entityKey === "subjects" && field.key === "teacherIds") {
-         record.teacherIds = value !== "" ? [Number(value)] : [];
+         draft.teacherIds = value !== "" ? [Number(value)] : [];
          return;
        }
        if (field.type === "number") value = Number(value);
        if (field.key.endsWith("Id") && value !== "") value = Number(value);
-       record[field.key] = value;
+       draft[field.key] = value;
      });
    
-     if (mode === "add" && (entityKey === "teachers" || entityKey === "students") && !record.password) {
-       record.password = generatePassword();
+     if (entityKey === "students") {
+       draft.name = buildStudentFullName(draft.firstName, draft.middleName, draft.lastName);
+   
+       const duplicateName = data.students.find(s => s.id !== draft.id && studentsHaveSameName(s, draft));
+       if (duplicateName) {
+         alert("An existing student information already exist.");
+         return;
+       }
+   
+       // Safety net: if the generated/typed student number somehow collides
+       // with another student's (e.g. the birthdate changed but the number
+       // didn't refresh), silently regenerate a fresh, unique one.
+       const duplicateNo = data.students.find(s => s.id !== draft.id && s.studentNo === draft.studentNo);
+       if (duplicateNo) {
+         draft.studentNo = generateStudentNoFromBirthdate(draft.birthDate, draft.id);
+       }
      }
    
-     const recordName = record.name || record.code || record.studentNo || "—";
+     if (mode === "add" && (entityKey === "teachers" || entityKey === "students") && !draft.password) {
+       draft.password = generatePassword();
+     }
+   
+     const recordName = draft.name || draft.code || draft.studentNo || "—";
      const logCategory = entityLogCategory[entityKey] || "Admin";
    
      if (mode === "add") {
-       data[entityKey].push(record);
+       data[entityKey].push(draft);
        logActivity(`Added a new ${config.label}: ${recordName}.`, logCategory, "Add", recordName);
      } else {
+       Object.assign(existingRecord, draft);
        logActivity(`Updated ${config.label} record: ${recordName}.`, logCategory, "Edit", recordName);
      }
    
