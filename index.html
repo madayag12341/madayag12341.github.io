@@ -48,9 +48,6 @@
       <button class="nav-item" data-page="settings">
         <span class="nav-num">06</span> <span class="nav-label">Admin Settings</span>
       </button>
-      <button class="nav-item" data-page="logs">
-        <span class="nav-num">07</span> <span class="nav-label">Logs</span>
-      </button>
     </nav>
 
     <div class="sidebar-foot">
@@ -318,6 +315,7 @@
           </div>
           <div class="settings-actions">
             <button type="submit" class="btn-seal">Save settings</button>
+            <button type="button" class="btn-seal" id="logsBtn">Logs</button>
             <span class="save-flash" id="saveFlash" hidden>Saved.</span>
           </div>
         </form>
@@ -339,36 +337,6 @@
           <button type="button" class="btn-ghost" id="viewStudentAccountsBtn">View student accounts</button>
           <button type="button" class="btn-ghost" id="viewAdminAccountsBtn">View admin / principal accounts</button>
         </div>
-      </div>
-    </section>
-
-    <!-- LOGS -->
-    <section class="page" id="page-logs">
-      <header class="page-head">
-        <div>
-          <p class="page-eyebrow">Activity</p>
-          <h1>Logs</h1>
-          <p class="page-desc">Every add, edit, and delete recorded across the system.</p>
-        </div>
-      </header>
-
-      <div class="filter-bar">
-        <select id="logsFilterCategory" aria-label="Filter by category">
-          <option value="all">All logs</option>
-          <option value="Student">Student</option>
-          <option value="Teacher">Teacher</option>
-          <option value="Admin">Admin</option>
-        </select>
-      </div>
-
-      <div class="ledger-panel">
-        <table class="ledger-table" id="logsTable">
-          <thead>
-            <tr><th>Date</th><th>Time</th><th>Name</th><th>Category</th><th>Action</th><th>Details</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-        <p class="empty-note" id="empty-logs" hidden>No logs for this filter yet.</p>
       </div>
     </section>
 
@@ -455,6 +423,40 @@
 
     <div class="modal-actions">
       <button type="button" class="btn-ghost" id="gradesDone">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOGS -->
+<div class="modal-backdrop" id="logsBackdrop" hidden>
+  <div class="modal-card modal-card--wide" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2>Logs</h2>
+      <button class="modal-close" id="logsClose" aria-label="Close">&times;</button>
+    </div>
+    <p class="page-desc">Every add, edit, and delete recorded across the system.</p>
+
+    <div class="filter-bar">
+      <select id="logsFilterCategory" aria-label="Filter by category">
+        <option value="all">All logs</option>
+        <option value="Student">Student</option>
+        <option value="Teacher">Teacher</option>
+        <option value="Admin">Admin</option>
+      </select>
+    </div>
+
+    <div class="grades-table-wrap">
+      <table class="ledger-table" id="logsTable">
+        <thead>
+          <tr><th>Date</th><th>Time</th><th>Name</th><th>Category</th><th>Action</th><th>Details</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="empty-note" id="empty-logs" hidden>No logs for this filter yet.</p>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="logsDone">Close</button>
     </div>
   </div>
 </div>
