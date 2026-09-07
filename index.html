@@ -279,7 +279,7 @@
       </header>
 
       <div class="ledger-panel settings-panel">
-        <form id="settingsForm">
+        <form id="settingsForm" novalidate>
           <div class="field-grid">
             <label class="field">
               <span>School name</span>
@@ -311,7 +311,7 @@
             </label>
           </div>
           <div class="settings-actions">
-            <button type="submit" class="btn-seal">Save settings</button>
+            <button type="submit" class="btn-seal" id="saveSettingsBtn">Save settings</button>
             <button type="button" class="btn-seal" id="logsBtn">Logs</button>
             <span class="save-flash" id="saveFlash" hidden>Saved.</span>
           </div>
@@ -347,7 +347,7 @@
       <h2 id="modalTitle">Add record</h2>
       <button class="modal-close" id="modalClose" aria-label="Close">&times;</button>
     </div>
-    <form id="modalForm">
+    <form id="modalForm" novalidate>
       <div class="field-grid" id="modalFields"></div>
       <div class="modal-actions" id="modalActions">
         <button type="button" class="btn-ghost" id="modalCancel">Cancel</button>
