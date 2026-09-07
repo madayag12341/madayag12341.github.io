@@ -433,6 +433,13 @@
    function existingSectionNamesForGrade(gradeLevel) {
      return data.sections.filter(s => s.gradeLevel === gradeLevel).map(s => ({ value: s.name, label: s.name }));
    }
+   // All sections sorted by grade level then name — used to populate the
+   // Sections page's "All sections" filter dropdown.
+   function sortedSections() {
+     return [...data.sections].sort((a, b) =>
+       a.gradeLevel.localeCompare(b.gradeLevel) || a.name.localeCompare(b.name)
+     );
+   }
    function subjectLoadCount(teacherId) {
      return data.subjects.filter(s => (s.teacherIds || []).includes(teacherId)).length;
    }
