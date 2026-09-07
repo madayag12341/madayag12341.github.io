@@ -914,12 +914,14 @@
    
        // A single text field with datalist suggestions — the admin can pick a
        // suggested name or type any custom name directly, no separate
-       // "Rename"/"Choose existing" toggle needed.
+       // "Rename"/"Choose existing" toggle needed. In add mode, it starts
+       // pre-filled with the first suggested name (still fully editable).
        function renderNameField(preferredName) {
          const grade = gradeSelect.value;
          const opts = mode === "edit" ? existingSectionNamesForGrade(grade) : sectionNameOptionsForGrade(grade, preferredName);
+         const value = preferredName ?? (opts[0] ? opts[0].value : "");
          nameWrap.innerHTML = `<span>Section name</span>
-           <input type="text" data-key="name" list="sectionNameSuggestions" value="${preferredName ?? ""}" autocomplete="off" required>
+           <input type="text" data-key="name" list="sectionNameSuggestions" value="${value}" autocomplete="off" required>
            <datalist id="sectionNameSuggestions">${opts.map(o => `<option value="${o.value}"></option>`).join("")}</datalist>`;
          nameWrap.querySelector('[data-key="name"]').addEventListener("input", syncAdviser);
        }
