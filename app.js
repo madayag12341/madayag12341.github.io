@@ -318,7 +318,7 @@
        label: "section",
        fields: [
          { key: "gradeLevel", label: "Grade level", type: "select", options: ["Grade 7", "Grade 8", "Grade 9", "Grade 10"] },
-         { key: "name", label: "Section name", type: "select", options: () => sectionNameOptionsForGrade("Grade 7") },
+         { key: "name", label: "Section name", type: "select", required: true, options: () => sectionNameOptionsForGrade("Grade 7") },
          { key: "adviserId", label: "Adviser", type: "select", options: () => teacherOptions() },
        ],
        columns: (row) => [
@@ -878,11 +878,6 @@
        const nameWrap = modalFields.querySelector('[data-field-key="name"]');
        const adviserWrap = modalFields.querySelector('[data-field-key="adviserId"]');
    
-       // "pick": choose among sections that already exist for the grade (lets the
-       // adviser auto-fill). "custom": free-text rename of *this* section — only
-       // offered in edit mode.
-       let nameMode = "pick";
-   
        function lockAdviser(adviserId) {
          adviserWrap.innerHTML = `<span>Adviser</span>
            <input type="text" value="${teacherName(adviserId)}" disabled>
@@ -894,50 +889,32 @@
            <select data-key="adviserId">${opts.map(o => `<option value="${o.value}">${o.label}</option>`).join("")}</select>`;
        }
    
+       // If what's currently typed exactly matches another already-existing
+       // section for this grade, lock the adviser to that section's adviser
+       // (renaming/re-picking a section shouldn't silently reassign advisers).
        function syncAdviser() {
-         if (nameMode === "custom") {
-           // Renaming doesn't change who advises the section.
-           lockAdviser(row ? row.adviserId : null);
-           return;
-         }
          const nameInput = nameWrap.querySelector('[data-key="name"]');
-         const match = findSectionByGradeAndName(gradeSelect.value, nameInput.value);
-         if (match) lockAdviser(match.adviserId); else unlockAdviser();
+         const match = findSectionByGradeAndName(gradeSelect.value, nameInput.value.trim());
+         if (match && (!row || match.id !== row.id)) lockAdviser(match.adviserId); else unlockAdviser();
        }
    
+       // A single text field with datalist suggestions — the admin can pick a
+       // suggested name or type any custom name directly, no separate
+       // "Rename"/"Choose existing" toggle needed.
        function renderNameField(preferredName) {
          const grade = gradeSelect.value;
-         if (nameMode === "custom") {
-           nameWrap.innerHTML = `<span>Section name</span>
-             <div class="field-with-action">
-               <input type="text" data-key="name" value="${preferredName ?? ""}" required>
-               <button type="button" class="btn-tiny" data-name-mode="pick">Choose existing</button>
-             </div>`;
-         } else {
-           const opts = mode === "edit" ? existingSectionNamesForGrade(grade) : sectionNameOptionsForGrade(grade, preferredName);
-           const selectHtml = `<select data-key="name">${opts.map(o => `<option value="${o.value}">${o.label}</option>`).join("")}</select>`;
-           nameWrap.innerHTML = mode === "edit"
-             ? `<span>Section name</span><div class="field-with-action">${selectHtml}<button type="button" class="btn-tiny" data-name-mode="custom">Rename</button></div>`
-             : `<span>Section name</span>${selectHtml}`;
-           const nameSelect = nameWrap.querySelector('[data-key="name"]');
-           if (preferredName && opts.some(o => o.value === preferredName)) nameSelect.value = preferredName;
-           nameSelect.addEventListener("change", syncAdviser);
-         }
-         const toggleBtn = nameWrap.querySelector("[data-name-mode]");
-         if (toggleBtn) {
-           toggleBtn.addEventListener("click", () => {
-             nameMode = toggleBtn.dataset.nameMode;
-             renderNameField(nameMode === "custom" ? (row ? row.name : "") : null);
-             syncAdviser();
-           });
-         }
+         const opts = mode === "edit" ? existingSectionNamesForGrade(grade) : sectionNameOptionsForGrade(grade, preferredName);
+         nameWrap.innerHTML = `<span>Section name</span>
+           <input type="text" data-key="name" list="sectionNameSuggestions" value="${preferredName ?? ""}" autocomplete="off" required>
+           <datalist id="sectionNameSuggestions">${opts.map(o => `<option value="${o.value}"></option>`).join("")}</datalist>`;
+         nameWrap.querySelector('[data-key="name"]').addEventListener("input", syncAdviser);
        }
    
        renderNameField(row ? row.name : null);
        syncAdviser();
    
        gradeSelect.addEventListener("change", () => {
-         if (nameMode === "pick") renderNameField(null);
+         renderNameField(null);
          syncAdviser();
        });
      }
