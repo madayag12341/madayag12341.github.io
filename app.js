@@ -1348,6 +1348,10 @@
      backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
    }
    
+   document.getElementById("logsBtn").addEventListener("click", () => {
+     renderLogs();
+     document.getElementById("logsBackdrop").hidden = false;
+   });
    document.getElementById("viewTeacherAccountsBtn").addEventListener("click", () => {
      renderTeacherAccountsModal();
      document.getElementById("teacherAccountsBackdrop").hidden = false;
@@ -1361,6 +1365,7 @@
      document.getElementById("adminAccountsBackdrop").hidden = false;
    });
    
+   wireSimpleModalClose("logsBackdrop", "logsClose", "logsDone");
    wireSimpleModalClose("teacherAccountsBackdrop", "teacherAccountsClose", "teacherAccountsDone");
    wireSimpleModalClose("studentAccountsBackdrop", "studentAccountsClose", "studentAccountsDone");
    wireSimpleModalClose("adminAccountsBackdrop", "adminAccountsClose", "adminAccountsDone");
