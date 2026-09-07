@@ -422,15 +422,6 @@
      const teacherStillExists = currentTeacher === "all" || currentTeacher === "none" || data.teachers.some(t => String(t.id) === currentTeacher);
      teacherSelect.value = teacherStillExists ? currentTeacher : "all";
      if (!teacherStillExists) subjectFilter.teacherId = "all";
-   
-     const unitsSelect = document.getElementById("subjectFilterUnits");
-     const currentUnits = unitsSelect.value;
-     const uniqueUnits = [...new Set(data.subjects.map(s => s.units))].sort((a, b) => a - b);
-     unitsSelect.innerHTML = `<option value="all">All units</option>` +
-       uniqueUnits.map(u => `<option value="${u}">${u}</option>`).join("");
-     const unitsStillExists = currentUnits === "all" || uniqueUnits.some(u => String(u) === currentUnits);
-     unitsSelect.value = unitsStillExists ? currentUnits : "all";
-     if (!unitsStillExists) subjectFilter.units = "all";
    }
    
    function refreshSectionFilterOptions() {
@@ -471,17 +462,16 @@
      });
    }
    
-   let subjectFilter = { term: "", gradeLevel: "all", teacherId: "all", units: "all" };
+   let subjectFilter = { term: "", gradeLevel: "all", teacherId: "all" };
    
    function getFilteredSubjects() {
      const term = subjectFilter.term.trim().toLowerCase();
      return data.subjects.filter(s => {
        const matchesTerm = !term || s.code.toLowerCase().includes(term) || s.name.toLowerCase().includes(term);
        const matchesGrade = subjectFilter.gradeLevel === "all" || s.gradeLevel === subjectFilter.gradeLevel;
-       const matchesUnits = subjectFilter.units === "all" || String(s.units) === String(subjectFilter.units);
        const matchesTeacher = subjectFilter.teacherId === "all" ||
          (subjectFilter.teacherId === "none" ? !(s.teacherIds && s.teacherIds.length) : (s.teacherIds || []).includes(Number(subjectFilter.teacherId)));
-       return matchesTerm && matchesGrade && matchesUnits && matchesTeacher;
+       return matchesTerm && matchesGrade && matchesTeacher;
      });
    }
    
@@ -566,14 +556,35 @@
      });
    }
    
+   /* Small inline icon set used for row actions — pen (edit), trash can
+      (delete), and a document/paper icon (grading card sheet). */
+   const ROW_ICONS = {
+     edit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+       <path d="M12 20h9"></path>
+       <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+     </svg>`,
+     delete: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+       <path d="M3 6h18"></path>
+       <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+       <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+       <path d="M10 11v6"></path>
+       <path d="M14 11v6"></path>
+     </svg>`,
+     grades: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path>
+       <path d="M14 2v6h6"></path>
+       <path d="M9 13h6"></path>
+       <path d="M9 17h6"></path>
+     </svg>`,
+   };
+
    function buildRowActions(entityKey, row) {
-     if (entityKey === "subjects" || entityKey === "sections") return null; // managed via the header buttons above the table
      const parts = [];
      if (entityKey === "students") {
-       parts.push(`<button data-grades="${row.id}">Grading card sheet</button>`);
+       parts.push(`<button class="icon-btn icon-btn--grades" data-grades="${row.id}" title="Grading card sheet" aria-label="Grading card sheet">${ROW_ICONS.grades}</button>`);
      }
-     parts.push(`<button data-edit="${entityKey}:${row.id}">Edit</button>`);
-     parts.push(`<button class="link-delete" data-delete="${entityKey}:${row.id}">Delete</button>`);
+     parts.push(`<button class="icon-btn" data-edit="${entityKey}:${row.id}" title="Edit" aria-label="Edit">${ROW_ICONS.edit}</button>`);
+     parts.push(`<button class="icon-btn link-delete" data-delete="${entityKey}:${row.id}" title="Delete" aria-label="Delete">${ROW_ICONS.delete}</button>`);
      return parts.join("");
    }
    
@@ -890,11 +901,13 @@
    /* Table view/edit/delete (event delegation) */
    document.querySelectorAll(".ledger-panel").forEach(panel => {
      panel.addEventListener("click", (e) => {
-       const viewKey = e.target.dataset.view;
-       const editKey = e.target.dataset.edit;
-       const deleteKey = e.target.dataset.delete;
-       const loadKey = e.target.dataset.load;
-       const gradesKey = e.target.dataset.grades;
+       const target = e.target.closest("[data-view],[data-edit],[data-delete],[data-load],[data-grades]");
+       if (!target) return;
+       const viewKey = target.dataset.view;
+       const editKey = target.dataset.edit;
+       const deleteKey = target.dataset.delete;
+       const loadKey = target.dataset.load;
+       const gradesKey = target.dataset.grades;
    
        if (gradesKey) {
          openGradesModal(Number(gradesKey));
@@ -1026,350 +1039,6 @@
    loadBackdrop.addEventListener("click", (e) => { if (e.target === loadBackdrop) closeLoadModal(); });
    
    /* ============================================
-      DELETE SUBJECT MODAL
-      A single, centralized place to remove a subject —
-      type its code or pick it from the dropdown (either
-      one fills in the other), then confirm the delete.
-      Reachable only from the Subjects page.
-      ============================================ */
-   const deleteSubjectBackdrop = document.getElementById("deleteSubjectBackdrop");
-   const dsCodeInput = document.getElementById("ds-code");
-   const dsSubjectSelect = document.getElementById("ds-subject");
-   
-   function refreshDeleteSubjectOptions(selectedId) {
-     const sorted = [...data.subjects].sort((a, b) =>
-       a.gradeLevel.localeCompare(b.gradeLevel) || a.name.localeCompare(b.name)
-     );
-     dsSubjectSelect.innerHTML = `<option value="">— Select subject —</option>` +
-       sorted.map(s => `<option value="${s.id}">${s.code} — ${s.name}</option>`).join("");
-     dsSubjectSelect.value = selectedId != null ? selectedId : "";
-   }
-   
-   function openDeleteSubjectModal() {
-     if (data.subjects.length === 0) {
-       alert("No subjects yet to delete.");
-       return;
-     }
-     dsCodeInput.value = "";
-     refreshDeleteSubjectOptions();
-     deleteSubjectBackdrop.hidden = false;
-   }
-   
-   // Typing a code looks up and selects the matching subject in the dropdown.
-   dsCodeInput.addEventListener("input", () => {
-     const typed = dsCodeInput.value.trim().toLowerCase();
-     if (!typed) { dsSubjectSelect.value = ""; return; }
-     const match = data.subjects.find(s => s.code.toLowerCase() === typed);
-     dsSubjectSelect.value = match ? match.id : "";
-   });
-   
-   // Picking a subject from the dropdown fills in its code.
-   dsSubjectSelect.addEventListener("change", () => {
-     const subject = data.subjects.find(s => s.id === Number(dsSubjectSelect.value));
-     dsCodeInput.value = subject ? subject.code : "";
-   });
-   
-   document.getElementById("deleteSubjectConfirm").addEventListener("click", () => {
-     const subject = data.subjects.find(s => s.id === Number(dsSubjectSelect.value));
-     if (!subject) {
-       alert("Pick a subject (or type its code) first.");
-       return;
-     }
-     if (!confirm(`Delete "${subject.code} — ${subject.name}"? This can't be undone.`)) return;
-     data.subjects = data.subjects.filter(s => s.id !== subject.id);
-     logActivity(`Deleted a subject: ${subject.code} — ${subject.name}.`, "Admin", "Delete", `${subject.code} — ${subject.name}`);
-     renderAll();
-     closeDeleteSubjectModal();
-   });
-   
-   function closeDeleteSubjectModal() { deleteSubjectBackdrop.hidden = true; }
-   document.getElementById("deleteSubjectClose").addEventListener("click", closeDeleteSubjectModal);
-   document.getElementById("deleteSubjectCancel").addEventListener("click", closeDeleteSubjectModal);
-   deleteSubjectBackdrop.addEventListener("click", (e) => { if (e.target === deleteSubjectBackdrop) closeDeleteSubjectModal(); });
-   document.getElementById("deleteSubjectBtn").addEventListener("click", openDeleteSubjectModal);
-   
-   /* ============================================
-      RENAME SUBJECT MODAL
-      Same picker pattern as Delete subject — type its
-      code or choose it from the dropdown, either one
-      fills in the other. Once a subject is picked, its
-      code, subject name, units, grade level and teacher
-      all become editable and can be saved in one go.
-      Reachable only from the Subjects page.
-      ============================================ */
-   const renameSubjectBackdrop = document.getElementById("renameSubjectBackdrop");
-   const rsCodeInput = document.getElementById("rs-code");
-   const rsSubjectSelect = document.getElementById("rs-subject");
-   const renameSubjectFields = document.getElementById("renameSubjectFields");
-   const rsNewCodeInput = document.getElementById("rs-newCode");
-   const rsNewNameInput = document.getElementById("rs-newName");
-   const rsNewUnitsInput = document.getElementById("rs-newUnits");
-   const rsNewGradeSelect = document.getElementById("rs-newGrade");
-   const rsNewTeacherSelect = document.getElementById("rs-newTeacher");
-   const renameSubjectSaveBtn = document.getElementById("renameSubjectSave");
-   
-   function refreshRenameSubjectOptions(selectedId) {
-     const sorted = [...data.subjects].sort((a, b) =>
-       a.gradeLevel.localeCompare(b.gradeLevel) || a.name.localeCompare(b.name)
-     );
-     rsSubjectSelect.innerHTML = `<option value="">— Select subject —</option>` +
-       sorted.map(s => `<option value="${s.id}">${s.code} — ${s.name}</option>`).join("");
-     rsSubjectSelect.value = selectedId != null ? selectedId : "";
-   }
-   
-   function clearRenameSubjectFields() {
-     renameSubjectFields.hidden = true;
-     renameSubjectSaveBtn.disabled = true;
-     rsNewCodeInput.value = "";
-     rsNewNameInput.value = "";
-     rsNewUnitsInput.value = "";
-     rsNewGradeSelect.value = "";
-     rsNewTeacherSelect.innerHTML = "";
-   }
-   
-   function loadSubjectIntoRenameForm(subject) {
-     rsNewCodeInput.value = subject.code;
-     rsNewNameInput.value = subject.name;
-     rsNewUnitsInput.value = subject.units;
-     rsNewGradeSelect.value = subject.gradeLevel;
-     const teacherOpts = teacherOptions();
-     rsNewTeacherSelect.innerHTML = teacherOpts.map(o => `<option value="${o.value}">${o.label}</option>`).join("");
-     rsNewTeacherSelect.value = (subject.teacherIds && subject.teacherIds[0] != null) ? String(subject.teacherIds[0]) : "";
-     renameSubjectFields.hidden = false;
-     renameSubjectSaveBtn.disabled = false;
-   }
-   
-   function openRenameSubjectModal() {
-     if (data.subjects.length === 0) {
-       alert("No subjects yet to rename.");
-       return;
-     }
-     rsCodeInput.value = "";
-     refreshRenameSubjectOptions();
-     clearRenameSubjectFields();
-     renameSubjectBackdrop.hidden = false;
-   }
-   
-   // Typing a code looks up and selects the matching subject in the dropdown.
-   rsCodeInput.addEventListener("input", () => {
-     const typed = rsCodeInput.value.trim().toLowerCase();
-     if (!typed) { rsSubjectSelect.value = ""; clearRenameSubjectFields(); return; }
-     const match = data.subjects.find(s => s.code.toLowerCase() === typed);
-     rsSubjectSelect.value = match ? match.id : "";
-     if (match) loadSubjectIntoRenameForm(match); else clearRenameSubjectFields();
-   });
-   
-   // Picking a subject from the dropdown fills in its code and loads the edit form.
-   rsSubjectSelect.addEventListener("change", () => {
-     const subject = data.subjects.find(s => s.id === Number(rsSubjectSelect.value));
-     rsCodeInput.value = subject ? subject.code : "";
-     if (subject) loadSubjectIntoRenameForm(subject); else clearRenameSubjectFields();
-   });
-   
-   renameSubjectSaveBtn.addEventListener("click", () => {
-     const subject = data.subjects.find(s => s.id === Number(rsSubjectSelect.value));
-     if (!subject) {
-       alert("Pick a subject (or type its code) first.");
-       return;
-     }
-     const newCode = rsNewCodeInput.value.trim();
-     const newName = rsNewNameInput.value.trim();
-     if (!newCode || !newName) {
-       alert("Subject code and subject name can't be empty.");
-       return;
-     }
-     if (!rsNewGradeSelect.value) {
-       alert("Pick a grade level.");
-       return;
-     }
-     const codeTaken = data.subjects.some(s => s.id !== subject.id && s.code.toLowerCase() === newCode.toLowerCase());
-     if (codeTaken) {
-       alert("That code is already used by another subject.");
-       return;
-     }
-     const oldLabel = `${subject.code} — ${subject.name}`;
-     subject.code = newCode;
-     subject.name = newName;
-     subject.units = Number(rsNewUnitsInput.value) || subject.units;
-     subject.gradeLevel = rsNewGradeSelect.value;
-     subject.teacherIds = rsNewTeacherSelect.value !== "" ? [Number(rsNewTeacherSelect.value)] : [];
-     logActivity(`Renamed a subject: ${oldLabel} → ${subject.code} — ${subject.name}.`, "Admin", "Edit", `${subject.code} — ${subject.name}`);
-     renderAll();
-     closeRenameSubjectModal();
-   });
-   
-   function closeRenameSubjectModal() {
-     renameSubjectBackdrop.hidden = true;
-     rsCodeInput.value = "";
-     rsSubjectSelect.value = "";
-     clearRenameSubjectFields();
-   }
-   document.getElementById("renameSubjectClose").addEventListener("click", closeRenameSubjectModal);
-   document.getElementById("renameSubjectCancel").addEventListener("click", closeRenameSubjectModal);
-   renameSubjectBackdrop.addEventListener("click", (e) => { if (e.target === renameSubjectBackdrop) closeRenameSubjectModal(); });
-   document.getElementById("renameSubjectBtn").addEventListener("click", openRenameSubjectModal);
-   
-   /* ============================================
-      SECTION PICKER HELPERS (shared by Delete/Edit)
-      ============================================ */
-   function sortedSections() {
-     return [...data.sections].sort((a, b) =>
-       a.gradeLevel.localeCompare(b.gradeLevel) || a.name.localeCompare(b.name)
-     );
-   }
-   
-   // Teachers who currently advise no section, plus whichever teacher already
-   // advises *this* section (so their existing assignment stays selectable).
-   function availableAdviserOptions(currentAdviserId) {
-     const advisedIds = new Set(data.sections.map(s => s.adviserId).filter(id => id != null));
-     const opts = data.teachers
-       .filter(t => !advisedIds.has(t.id) || t.id === currentAdviserId)
-       .map(t => ({ value: t.id, label: t.name }));
-     return [{ value: "", label: "— none —" }, ...opts];
-   }
-   
-   /* ============================================
-      DELETE SECTION MODAL
-      Pick a section from the dropdown, then confirm.
-      Reachable only from the Sections page.
-      ============================================ */
-   const deleteSectionBackdrop = document.getElementById("deleteSectionBackdrop");
-   const delsecSelect = document.getElementById("delsec-section");
-   
-   function refreshDeleteSectionOptions() {
-     delsecSelect.innerHTML = `<option value="">— Select section —</option>` +
-       sortedSections().map(s => `<option value="${s.id}">${s.name}</option>`).join("");
-     delsecSelect.value = "";
-   }
-   
-   function openDeleteSectionModal() {
-     if (data.sections.length === 0) {
-       alert("No sections yet to delete.");
-       return;
-     }
-     refreshDeleteSectionOptions();
-     deleteSectionBackdrop.hidden = false;
-   }
-   
-   document.getElementById("deleteSectionConfirm").addEventListener("click", () => {
-     const section = data.sections.find(s => s.id === Number(delsecSelect.value));
-     if (!section) {
-       alert("Pick a section first.");
-       return;
-     }
-     if (!confirm(`Delete "${section.name}"? This can't be undone.`)) return;
-     data.sections = data.sections.filter(s => s.id !== section.id);
-     logActivity(`Deleted a section: ${section.name}.`, "Admin", "Delete", section.name);
-     renderAll();
-     closeDeleteSectionModal();
-   });
-   
-   function closeDeleteSectionModal() {
-     deleteSectionBackdrop.hidden = true;
-     delsecSelect.value = "";
-   }
-   document.getElementById("deleteSectionClose").addEventListener("click", closeDeleteSectionModal);
-   document.getElementById("deleteSectionCancel").addEventListener("click", closeDeleteSectionModal);
-   deleteSectionBackdrop.addEventListener("click", (e) => { if (e.target === deleteSectionBackdrop) closeDeleteSectionModal(); });
-   document.getElementById("deleteSectionBtn").addEventListener("click", openDeleteSectionModal);
-   
-   /* ============================================
-      EDIT SECTION MODAL
-      Pick a section, then its grade level, name and
-      adviser become editable. The picker and the edit
-      fields always start blank on open (and reset again
-      on close) so nothing carries over between visits.
-      The adviser dropdown only lists teachers with no
-      advisory yet, plus this section's current adviser.
-      Reachable only from the Sections page.
-      ============================================ */
-   const editSectionBackdrop = document.getElementById("editSectionBackdrop");
-   const esSectionSelect = document.getElementById("es-section");
-   const editSectionFields = document.getElementById("editSectionFields");
-   const esNewGradeSelect = document.getElementById("es-newGrade");
-   const esNewNameInput = document.getElementById("es-newName");
-   const esNewAdviserSelect = document.getElementById("es-newAdviser");
-   const editSectionSaveBtn = document.getElementById("editSectionSave");
-   
-   function refreshEditSectionOptions() {
-     esSectionSelect.innerHTML = `<option value="">— Select section —</option>` +
-       sortedSections().map(s => `<option value="${s.id}">${s.name}</option>`).join("");
-     esSectionSelect.value = "";
-   }
-   
-   function clearEditSectionFields() {
-     editSectionFields.hidden = true;
-     editSectionSaveBtn.disabled = true;
-     esNewGradeSelect.value = "";
-     esNewNameInput.value = "";
-     esNewAdviserSelect.innerHTML = "";
-   }
-   
-   function loadSectionIntoEditForm(section) {
-     esNewGradeSelect.value = section.gradeLevel;
-     esNewNameInput.value = section.name;
-     const opts = availableAdviserOptions(section.adviserId);
-     esNewAdviserSelect.innerHTML = opts.map(o => `<option value="${o.value}">${o.label}</option>`).join("");
-     esNewAdviserSelect.value = section.adviserId != null ? String(section.adviserId) : "";
-     editSectionFields.hidden = false;
-     editSectionSaveBtn.disabled = false;
-   }
-   
-   function openEditSectionModal() {
-     if (data.sections.length === 0) {
-       alert("No sections yet to edit.");
-       return;
-     }
-     refreshEditSectionOptions();
-     clearEditSectionFields();
-     editSectionBackdrop.hidden = false;
-   }
-   
-   esSectionSelect.addEventListener("change", () => {
-     const section = data.sections.find(s => s.id === Number(esSectionSelect.value));
-     if (section) loadSectionIntoEditForm(section); else clearEditSectionFields();
-   });
-   
-   editSectionSaveBtn.addEventListener("click", () => {
-     const section = data.sections.find(s => s.id === Number(esSectionSelect.value));
-     if (!section) {
-       alert("Pick a section first.");
-       return;
-     }
-     const newName = esNewNameInput.value.trim();
-     if (!newName) {
-       alert("Section name can't be empty.");
-       return;
-     }
-     if (!esNewGradeSelect.value) {
-       alert("Pick a grade level.");
-       return;
-     }
-     const nameTaken = data.sections.some(s => s.id !== section.id && s.name.toLowerCase() === newName.toLowerCase());
-     if (nameTaken) {
-       alert("That section name is already used by another section.");
-       return;
-     }
-     const oldName = section.name;
-     section.gradeLevel = esNewGradeSelect.value;
-     section.name = newName;
-     section.adviserId = esNewAdviserSelect.value !== "" ? Number(esNewAdviserSelect.value) : null;
-     logActivity(`Updated section: ${oldName} → ${section.name}.`, "Admin", "Edit", section.name);
-     renderAll();
-     closeEditSectionModal();
-   });
-   
-   function closeEditSectionModal() {
-     editSectionBackdrop.hidden = true;
-     esSectionSelect.value = "";
-     clearEditSectionFields();
-   }
-   document.getElementById("editSectionClose").addEventListener("click", closeEditSectionModal);
-   document.getElementById("editSectionCancel").addEventListener("click", closeEditSectionModal);
-   editSectionBackdrop.addEventListener("click", (e) => { if (e.target === editSectionBackdrop) closeEditSectionModal(); });
-   document.getElementById("editSectionBtn").addEventListener("click", openEditSectionModal);
-   
-   /* ============================================
       GRADING CARD SHEET MODAL
       ============================================ */
    const gradesBackdrop = document.getElementById("gradesBackdrop");
@@ -1470,6 +1139,11 @@
          document.getElementById("studentFilterGrade").value = section.gradeLevel;
          refreshStudentSectionFilterOptions();
        }
+     } else {
+       // Returning to "All sections" also resets the grade level filter back to "all".
+       studentFilter.gradeLevel = "all";
+       document.getElementById("studentFilterGrade").value = "all";
+       refreshStudentSectionFilterOptions();
      }
      renderTable("students");
    });
@@ -1503,11 +1177,6 @@
      renderTable("subjects");
    });
    
-   document.getElementById("subjectFilterUnits").addEventListener("change", (e) => {
-     subjectFilter.units = e.target.value;
-     renderTable("subjects");
-   });
-   
    document.getElementById("subjectFilterTeacher").addEventListener("change", (e) => {
      subjectFilter.teacherId = e.target.value;
      renderTable("subjects");
@@ -1515,9 +1184,8 @@
    
    document.getElementById("subjectSearchClear").addEventListener("click", () => {
      subjectSearchInput.value = "";
-     subjectFilter = { term: "", gradeLevel: "all", teacherId: "all", units: "all" };
+     subjectFilter = { term: "", gradeLevel: "all", teacherId: "all" };
      document.getElementById("subjectFilterGrade").value = "all";
-     document.getElementById("subjectFilterUnits").value = "all";
      document.getElementById("subjectFilterTeacher").value = "all";
      renderTable("subjects");
    });
