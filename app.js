@@ -149,7 +149,7 @@
        const baseQ2 = baseQ1 + ((studentSeq % 5) - 2);
        data.students.push({
          id: newId(),
-         studentNo: generateStudentNoFromBirthdate(birthDate),
+         studentNo: generateStudentNo(first, middle, last, birthDate),
          firstName: first,
          middleName: middle,
          lastName: last,
@@ -230,9 +230,9 @@
       ============================================ */
    const toastContainer = document.getElementById("toastContainer");
    
-   function showToast(message) {
+   function showToast(message, type = "success") {
      const toast = document.createElement("div");
-     toast.className = "toast";
+     toast.className = `toast toast--${type}`;
      toast.textContent = message;
      toastContainer.appendChild(toast);
    
@@ -349,17 +349,26 @@
      const middlePart = middle ? ` ${middle.charAt(0).toUpperCase()}.` : "";
      return `${first}${middlePart} ${last}`.replace(/\s+/g, " ").trim();
    }
-   // Student numbers are derived from the birthdate (MG-YYYYMMDD-NN). If that
-   // exact number is already taken (e.g. another student shares the same
-   // birthdate), the sequence suffix increments until a free one is found —
-   // so generated numbers can never collide.
-   function generateStudentNoFromBirthdate(birthDateStr, excludeId = null) {
+   // Student numbers are built from the student's own initials (first + middle +
+   // last) plus their birthdate — e.g. Ava R. Bernal born 2014-01-15 becomes
+   // "ARB-20140115-01". If that exact number is already taken (e.g. another
+   // student shares the same initials and birthdate), the sequence suffix
+   // increments until a free one is found — so generated numbers can never collide.
+   function studentInitials(firstName, middleName, lastName) {
+     const f = (firstName || "").trim().charAt(0);
+     const m = (middleName || "").trim().charAt(0);
+     const l = (lastName || "").trim().charAt(0);
+     const initials = `${f}${m}${l}`.toUpperCase();
+     return initials || "STU";
+   }
+   function generateStudentNo(firstName, middleName, lastName, birthDateStr, excludeId = null) {
      if (!birthDateStr) return "";
+     const initials = studentInitials(firstName, middleName, lastName);
      const compact = birthDateStr.replace(/-/g, "");
      let seq = 1;
      let candidate;
      do {
-       candidate = `MG-${compact}-${String(seq).padStart(2, "0")}`;
+       candidate = `${initials}-${compact}-${String(seq).padStart(2, "0")}`;
        seq++;
      } while (data.students.some(s => s.studentNo === candidate && s.id !== excludeId));
      return candidate;
@@ -367,10 +376,12 @@
    function normalizeNamePart(str) {
      return (str || "").trim().toLowerCase().replace(/\s+/g, " ");
    }
-   function studentsHaveSameName(a, b) {
+   // Duplicate = same first, middle, AND last name, AND same birthdate.
+   function isDuplicateStudent(a, b) {
      return normalizeNamePart(a.firstName) === normalizeNamePart(b.firstName) &&
        normalizeNamePart(a.middleName) === normalizeNamePart(b.middleName) &&
-       normalizeNamePart(a.lastName) === normalizeNamePart(b.lastName);
+       normalizeNamePart(a.lastName) === normalizeNamePart(b.lastName) &&
+       (a.birthDate || "") === (b.birthDate || "");
    }
    // When gradeLevel is passed, only subject names that belong to that grade are
    // listed (e.g. picking "Grade 7" narrows this to English 7, Math 7, etc.).
@@ -818,6 +829,7 @@
      });
    
      modalSubmit.style.display = mode === "view" ? "none" : "inline-block";
+     modalSubmit.disabled = false;
      modalBackdrop.hidden = false;
    
      if (entityKey === "subjects" && mode !== "view") {
@@ -924,10 +936,45 @@
      }
    
      if (entityKey === "students" && mode !== "view") {
+       const firstNameInput = modalFields.querySelector('[data-key="firstName"]');
+       const middleNameInput = modalFields.querySelector('[data-key="middleName"]');
+       const lastNameInput = modalFields.querySelector('[data-key="lastName"]');
        const gradeSelect = modalFields.querySelector('[data-key="gradeLevel"]');
        const sectionSelect = modalFields.querySelector('[data-key="sectionId"]');
        const birthDateInput = modalFields.querySelector('[data-key="birthDate"]');
        const studentNoInput = modalFields.querySelector('[data-key="studentNo"]');
+   
+       function namesFilled() {
+         return firstNameInput.value.trim() !== "" && lastNameInput.value.trim() !== "";
+       }
+   
+       function refreshStudentNo() {
+         studentNoInput.value = birthDateInput.value
+           ? generateStudentNo(firstNameInput.value, middleNameInput.value, lastNameInput.value, birthDateInput.value, id)
+           : "";
+       }
+   
+       // Birthdate can't be picked until first and last name are filled in —
+       // the generated student number is built from those names' initials.
+       function syncBirthDateAvailability() {
+         const ready = namesFilled();
+         birthDateInput.disabled = !ready;
+         birthDateInput.title = ready ? "" : "Fill in the first and last name first.";
+         if (!ready) {
+           birthDateInput.value = "";
+           studentNoInput.value = "";
+         }
+       }
+   
+       syncBirthDateAvailability();
+   
+       [firstNameInput, middleNameInput, lastNameInput].forEach(input => {
+         input.addEventListener("input", () => {
+           syncBirthDateAvailability();
+           // Keep the generated number's initials in sync if a birthdate is already set.
+           if (birthDateInput.value) refreshStudentNo();
+         });
+       });
    
        // Picking a grade level narrows the section list down to just that
        // grade's sections. If the currently selected section doesn't belong to
@@ -940,13 +987,10 @@
          ).join("");
        });
    
-       // Picking a birthdate auto-generates the student number from it,
-       // guaranteed not to collide with any existing student's number.
-       birthDateInput.addEventListener("change", () => {
-         studentNoInput.value = birthDateInput.value
-           ? generateStudentNoFromBirthdate(birthDateInput.value, id)
-           : "";
-       });
+       // Picking a birthdate auto-generates the student number from the
+       // student's initials + birthdate, guaranteed not to collide with any
+       // existing student's number.
+       birthDateInput.addEventListener("change", refreshStudentNo);
      }
    }
    
@@ -957,6 +1001,8 @@
    
    modalForm.addEventListener("submit", (e) => {
      e.preventDefault();
+     modalSubmit.disabled = true; // one click per instance — re-enabled below on validation failure, or on next openModal() call after a successful save
+   
      const { entityKey, mode, id } = modalState;
      const config = entityConfig[entityKey];
      const existingRecord = mode === "edit" ? data[entityKey].find(r => r.id == id) : null;
@@ -981,21 +1027,33 @@
        draft[field.key] = value;
      });
    
+     // Generic required-field check (native browser validation is disabled on
+     // this form so every error/warning can be shown as a toast instead).
+     for (const field of config.fields) {
+       if (!field.required || field.type === "multiselect") continue;
+       const value = draft[field.key];
+       if (value === "" || value === null || typeof value === "undefined") {
+         showToast(`Please fill in "${field.label}".`, "warning");
+         modalSubmit.disabled = false;
+         return;
+       }
+     }
+   
      if (entityKey === "students") {
        draft.name = buildStudentFullName(draft.firstName, draft.middleName, draft.lastName);
    
-       const duplicateName = data.students.find(s => s.id !== draft.id && studentsHaveSameName(s, draft));
-       if (duplicateName) {
-         alert("An existing student information already exist.");
+       const duplicate = data.students.find(s => s.id !== draft.id && isDuplicateStudent(s, draft));
+       if (duplicate) {
+         showToast("An existing student information already exist.", "error");
+         modalSubmit.disabled = false;
          return;
        }
    
        // Safety net: if the generated/typed student number somehow collides
-       // with another student's (e.g. the birthdate changed but the number
-       // didn't refresh), silently regenerate a fresh, unique one.
+       // with another student's, silently regenerate a fresh, unique one.
        const duplicateNo = data.students.find(s => s.id !== draft.id && s.studentNo === draft.studentNo);
        if (duplicateNo) {
-         draft.studentNo = generateStudentNoFromBirthdate(draft.birthDate, draft.id);
+         draft.studentNo = generateStudentNo(draft.firstName, draft.middleName, draft.lastName, draft.birthDate, draft.id);
        }
      }
    
@@ -1010,15 +1068,17 @@
      if (mode === "add") {
        data[entityKey].push(draft);
        logActivity(`Added a new ${config.label}: ${recordName}.`, logCategory, "Add", recordName);
-       showToast(`${label} added.`);
+       showToast(`${label} added.`, "success");
      } else {
        Object.assign(existingRecord, draft);
        logActivity(`Updated ${config.label} record: ${recordName}.`, logCategory, "Edit", recordName);
-       showToast(`${label} updated.`);
+       showToast(`${label} updated.`, "success");
      }
    
      renderAll();
      closeModal();
+     // modalSubmit stays disabled (greyed out) — openModal() re-enables it the
+     // next time this form is opened for a new add/edit instance.
    });
    
    modalFields.addEventListener("click", (e) => {
@@ -1473,18 +1533,34 @@
    
    document.getElementById("settingsForm").addEventListener("submit", (e) => {
      e.preventDefault();
-     settings.schoolName = document.getElementById("set-schoolName").value;
-     settings.schoolYear = document.getElementById("set-schoolYear").value;
+     const saveSettingsBtn = document.getElementById("saveSettingsBtn");
+     saveSettingsBtn.disabled = true;
+   
+     const schoolName = document.getElementById("set-schoolName").value.trim();
+     const schoolYear = document.getElementById("set-schoolYear").value.trim();
+     const passing = document.getElementById("set-passing").value;
+   
+     if (!schoolName || !schoolYear || passing === "") {
+       showToast("Please fill in all required settings fields.", "warning");
+       saveSettingsBtn.disabled = false;
+       return;
+     }
+   
+     settings.schoolName = schoolName;
+     settings.schoolYear = schoolYear;
      settings.period = document.getElementById("set-period").value;
      settings.scale = document.getElementById("set-scale").value;
-     settings.passing = Number(document.getElementById("set-passing").value);
+     settings.passing = Number(passing);
      document.getElementById("sidebarYear").textContent = settings.schoolYear;
    
      const flash = document.getElementById("saveFlash");
      flash.hidden = false;
      logActivity("Updated admin settings.", "Admin", "Edit", settings.schoolName || "School settings");
-     showToast("Settings saved.");
-     setTimeout(() => { flash.hidden = true; }, 2000);
+     showToast("Settings saved.", "success");
+     setTimeout(() => {
+       flash.hidden = true;
+       saveSettingsBtn.disabled = false; // reactivate for the next save instance
+     }, 2000);
    });
    
    document.getElementById("resetDataBtn").addEventListener("click", () => {
