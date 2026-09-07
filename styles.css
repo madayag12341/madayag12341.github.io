@@ -219,7 +219,7 @@
   .main {
     flex: 1;
     padding: 40px 48px 60px;
-    max-width: 1080px;
+    min-width: 0; /* lets flex children (tables) shrink/scroll instead of overflowing the page */
   }
   
   /* ============================================
