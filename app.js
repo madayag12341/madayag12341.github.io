@@ -336,6 +336,16 @@
    function teacherOptions() {
      return [{ value: "", label: "— none —" }, ...data.teachers.map(t => ({ value: t.id, label: t.name }))];
    }
+   // Teachers not already assigned to teach this exact subject (by name) — so
+   // adding another instance of the same subject (e.g. a second section)
+   // can't offer a teacher who's already on it.
+   function availableTeacherOptionsForSubject(name, excludeId = null) {
+     const takenBy = new Set(
+       data.subjects.filter(s => s.name === name && s.id !== excludeId).flatMap(s => s.teacherIds || [])
+     );
+     const pool = data.teachers.filter(t => !takenBy.has(t.id));
+     return [{ value: "", label: "— none —" }, ...pool.map(t => ({ value: t.id, label: t.name }))];
+   }
    // Teachers who aren't already the adviser of some other section — so the
    // Adviser dropdown on Add/Edit Section doesn't offer someone already
    // spoken for. `keepId` (the section being edited, if any) makes sure its
@@ -884,15 +894,23 @@
        });
    
        // Picking a subject name fills in everything else: the locked code and
-       // units, the matching grade level, and whichever single teacher currently
-       // teaches that subject.
+       // units, and the matching grade level. In add mode, the teacher list
+       // narrows to just teachers not already assigned to this subject, since
+       // this is adding another instance of it (e.g. a second section) —
+       // whoever's already on it shouldn't be offered again.
        nameSelect.addEventListener("change", () => {
          const defaults = subjectDefaultsForName(nameSelect.value);
          if (!defaults) { clearDerivedFields(); return; }
          codeInput.value = defaults.code;
          unitsInput.value = defaults.units;
          gradeSelect.value = defaults.gradeLevel;
-         teacherSelect.value = (defaults.teacherIds && defaults.teacherIds[0] != null) ? String(defaults.teacherIds[0]) : "";
+         if (mode === "add") {
+           const opts = availableTeacherOptionsForSubject(nameSelect.value);
+           teacherSelect.innerHTML = opts.map(o => `<option value="${o.value}">${o.label}</option>`).join("");
+           teacherSelect.value = "";
+         } else {
+           teacherSelect.value = (defaults.teacherIds && defaults.teacherIds[0] != null) ? String(defaults.teacherIds[0]) : "";
+         }
        });
      }
    
@@ -1070,11 +1088,29 @@
      }
    
      if (entityKey === "subjects") {
-       // A subject's code already encodes its name + grade level, so the same
-       // code showing up twice means the exact same subject was added again.
-       const duplicateSubject = data.subjects.find(s => s.id !== draft.id && s.code === draft.code);
+       // Same code showing up twice is only a real duplicate if it's also the
+       // same teacher — a different teacher on the same subject is a
+       // legitimate second assignment (e.g. two sections of the same subject).
+       const newTeacherId = (draft.teacherIds && draft.teacherIds[0] != null) ? draft.teacherIds[0] : null;
+       const duplicateSubject = data.subjects.find(s => {
+         if (s.id === draft.id || s.code !== draft.code) return false;
+         const existingTeacherId = (s.teacherIds && s.teacherIds[0] != null) ? s.teacherIds[0] : null;
+         return existingTeacherId === newTeacherId;
+       });
        if (duplicateSubject) {
-         showToast("This subject already exists for that grade level.", "error");
+         showToast("This subject is already assigned to that teacher.", "error");
+         modalSubmit.disabled = false;
+         return;
+       }
+     }
+   
+     if (entityKey === "sections") {
+       // Section names must be unique across the WHOLE school, not just within
+       // their own grade level — no two sections, in any grade, may share a name.
+       const normalizedName = (draft.name || "").trim().toLowerCase();
+       const duplicateSection = data.sections.find(s => s.id !== draft.id && (s.name || "").trim().toLowerCase() === normalizedName);
+       if (duplicateSection) {
+         showToast("That section name is already used, even in another grade level.", "error");
          modalSubmit.disabled = false;
          return;
        }
@@ -1495,22 +1531,6 @@
        </tr>`).join("") : `<tr><td colspan="4">No student accounts yet.</td></tr>`;
    }
    
-   function renderAdminAccountsModal() {
-     const tbody = document.querySelector("#adminAccountsTable tbody");
-     const adminRows = data.admins.map(a => ({ name: a.name, role: a.role, username: a.username, status: a.status }));
-     const teacherAdminRows = data.teachers
-       .filter(t => t.adminAccess)
-       .map(t => ({ name: t.name, role: "Teacher", username: t.username, status: t.status }));
-     const rows = [...adminRows, ...teacherAdminRows];
-   
-     tbody.innerHTML = rows.length ? rows.map(r => `
-       <tr>
-         <td>${r.name}</td>
-         <td>${r.role}</td>
-         <td>${r.username || "—"}</td>
-         <td>${statusTag(r.status)}</td>
-       </tr>`).join("") : `<tr><td colspan="4">No admin accounts yet.</td></tr>`;
-   }
    
    function wireSimpleModalClose(backdropId, closeId, doneId) {
      const backdrop = document.getElementById(backdropId);
@@ -1532,21 +1552,15 @@
      renderStudentAccountsModal();
      document.getElementById("studentAccountsBackdrop").hidden = false;
    });
-   document.getElementById("viewAdminAccountsBtn").addEventListener("click", () => {
-     renderAdminAccountsModal();
-     document.getElementById("adminAccountsBackdrop").hidden = false;
-   });
    
    wireSimpleModalClose("logsBackdrop", "logsClose", "logsDone");
    wireSimpleModalClose("teacherAccountsBackdrop", "teacherAccountsClose", "teacherAccountsDone");
    wireSimpleModalClose("studentAccountsBackdrop", "studentAccountsClose", "studentAccountsDone");
-   wireSimpleModalClose("adminAccountsBackdrop", "adminAccountsClose", "adminAccountsDone");
    
    /* ============================================
       ADMIN SETTINGS
       ============================================ */
    function loadSettingsForm() {
-     document.getElementById("set-schoolName").value = settings.schoolName;
      document.getElementById("set-schoolYear").value = settings.schoolYear;
      document.getElementById("set-period").value = settings.period;
      document.getElementById("set-scale").value = settings.scale;
@@ -1559,17 +1573,15 @@
      const saveSettingsBtn = document.getElementById("saveSettingsBtn");
      saveSettingsBtn.disabled = true;
    
-     const schoolName = document.getElementById("set-schoolName").value.trim();
      const schoolYear = document.getElementById("set-schoolYear").value.trim();
      const passing = document.getElementById("set-passing").value;
    
-     if (!schoolName || !schoolYear || passing === "") {
+     if (!schoolYear || passing === "") {
        showToast("Please fill in all required settings fields.", "warning");
        saveSettingsBtn.disabled = false;
        return;
      }
    
-     settings.schoolName = schoolName;
      settings.schoolYear = schoolYear;
      settings.period = document.getElementById("set-period").value;
      settings.scale = document.getElementById("set-scale").value;
