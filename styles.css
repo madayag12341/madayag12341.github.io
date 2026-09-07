@@ -739,6 +739,8 @@
     .ledger-table thead th { padding: 10px 12px; font-size: 0.72rem; }
     .ledger-table tbody td { padding: 10px 12px; font-size: 0.85rem; }
     .icon-btn svg { width: 16px; height: 16px; }
+    .modal-backdrop { padding: 10px; }
+    .modal-card { padding: 18px 16px 16px; max-height: 94vh; }
   }
   
   @media (max-width: 420px) {
