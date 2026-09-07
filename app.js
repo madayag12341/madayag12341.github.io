@@ -434,6 +434,18 @@
      if (currentName && currentName.startsWith(gradeLevel) && !names.includes(currentName)) {
        names.unshift(currentName);
      }
+     // Safety net: if every tree name in the pool is already taken for this
+     // grade, still guarantee at least one usable suggestion so the field is
+     // never left blank, for every grade level.
+     if (names.length === 0) {
+       let n = 1;
+       let fallback = `${gradeLevel} – Section ${n}`;
+       while (usedNames.has(fallback)) {
+         n++;
+         fallback = `${gradeLevel} – Section ${n}`;
+       }
+       names.push(fallback);
+     }
      return names.map(n => ({ value: n, label: n }));
    }
    function findSectionByGradeAndName(gradeLevel, name) {
