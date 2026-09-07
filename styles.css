@@ -700,6 +700,27 @@
     overflow-x: auto;
   }
   
+  .grade-input {
+    width: 64px;
+    padding: 6px 8px;
+    border: 1px solid var(--paper-line);
+    border-radius: var(--radius);
+    background: #fff;
+    color: var(--ink);
+    text-align: center;
+  }
+  
+  .grade-input:focus {
+    outline: 2px solid var(--gold);
+    outline-offset: 1px;
+  }
+  
+  .grade-input:disabled {
+    background: var(--manila);
+    color: var(--ink-soft);
+    cursor: not-allowed;
+  }
+  
   .modal-head {
     display: flex;
     justify-content: space-between;
