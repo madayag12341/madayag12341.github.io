@@ -224,6 +224,29 @@
    }
    
    /* ============================================
+      TOASTS
+      Small, auto-dismissing confirmation shown top-right
+      whenever something is saved.
+      ============================================ */
+   const toastContainer = document.getElementById("toastContainer");
+   
+   function showToast(message) {
+     const toast = document.createElement("div");
+     toast.className = "toast";
+     toast.textContent = message;
+     toastContainer.appendChild(toast);
+   
+     // Next frame, so the transition from the initial (hidden) state actually animates in.
+     requestAnimationFrame(() => toast.classList.add("is-visible"));
+   
+     setTimeout(() => {
+       toast.classList.remove("is-visible");
+       toast.classList.add("is-leaving");
+       toast.addEventListener("transitionend", () => toast.remove(), { once: true });
+     }, 2500);
+   }
+   
+   /* ============================================
       ENTITY CONFIG
       Describes the fields + table columns for each
       entity so add/edit/view/delete can share one
@@ -982,13 +1005,16 @@
    
      const recordName = draft.name || draft.code || draft.studentNo || "—";
      const logCategory = entityLogCategory[entityKey] || "Admin";
+     const label = config.label.charAt(0).toUpperCase() + config.label.slice(1);
    
      if (mode === "add") {
        data[entityKey].push(draft);
        logActivity(`Added a new ${config.label}: ${recordName}.`, logCategory, "Add", recordName);
+       showToast(`${label} added.`);
      } else {
        Object.assign(existingRecord, draft);
        logActivity(`Updated ${config.label} record: ${recordName}.`, logCategory, "Edit", recordName);
+       showToast(`${label} updated.`);
      }
    
      renderAll();
@@ -1457,6 +1483,7 @@
      const flash = document.getElementById("saveFlash");
      flash.hidden = false;
      logActivity("Updated admin settings.", "Admin", "Edit", settings.schoolName || "School settings");
+     showToast("Settings saved.");
      setTimeout(() => { flash.hidden = true; }, 2000);
    });
    
