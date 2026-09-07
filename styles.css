@@ -45,7 +45,7 @@
   }
   
   .sidebar {
-    width: 232px;
+    width: var(--sidebar-width, 232px);
     flex-shrink: 0;
     background: var(--chalkboard);
     color: #EDE9DC;
@@ -55,6 +55,69 @@
     position: sticky;
     top: 0;
     height: 100vh;
+    transition: width 0.18s ease, padding 0.18s ease;
+  }
+  
+  /* Collapsed rail — icon/number-only sidebar */
+  .sidebar.is-collapsed {
+    width: 76px !important;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  
+  .sidebar.is-collapsed .crest-text,
+  .sidebar.is-collapsed .sidebar-foot,
+  .sidebar.is-collapsed .nav-label {
+    display: none;
+  }
+  
+  .sidebar.is-collapsed .crest {
+    justify-content: center;
+  }
+  
+  .sidebar.is-collapsed .nav-item {
+    justify-content: center;
+    gap: 0;
+  }
+  
+  .sidebar.is-collapsed .sidebar-resize-handle {
+    display: none;
+  }
+  
+  .sidebar-toggle {
+    align-self: flex-end;
+    background: none;
+    border: none;
+    color: #CFCABA;
+    cursor: pointer;
+    padding: 6px;
+    margin-bottom: 8px;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  
+  .sidebar-toggle:hover { background: rgba(237, 233, 220, 0.1); color: #fff; }
+  .sidebar-toggle svg { width: 18px; height: 18px; }
+  
+  .sidebar.is-collapsed .sidebar-toggle { align-self: center; }
+  
+  /* Drag handle for resizing the sidebar's width */
+  .sidebar-resize-handle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    background: transparent;
+  }
+  
+  .sidebar-resize-handle:hover,
+  .sidebar-resize-handle.is-dragging {
+    background: rgba(185, 134, 47, 0.45);
   }
   
   .crest {
@@ -678,7 +741,7 @@
      ============================================ */
   @media (max-width: 860px) {
     .app { flex-direction: column; }
-    .sidebar { width: 100%; height: auto; position: relative; flex-direction: row; align-items: center; flex-wrap: wrap; }
+    .sidebar { width: 100% !important; height: auto; position: relative; flex-direction: row; align-items: center; flex-wrap: wrap; }
     .crest { border: none; margin: 0; padding: 0; }
     .nav { flex-direction: row; flex-wrap: wrap; }
     .sidebar-foot { display: none; }
@@ -686,6 +749,8 @@
     .stat-row { grid-template-columns: 1fr 1fr; }
     .field-grid { grid-template-columns: 1fr; }
     .page-head { flex-direction: column; align-items: flex-start; }
+    .sidebar-toggle, .sidebar-resize-handle { display: none; }
+    .sidebar.is-collapsed .nav-label { display: inline; }
   }
   
   /* Reduced motion */
