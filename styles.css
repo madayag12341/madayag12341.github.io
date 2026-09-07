@@ -749,8 +749,23 @@
     .stat-row { grid-template-columns: 1fr 1fr; }
     .field-grid { grid-template-columns: 1fr; }
     .page-head { flex-direction: column; align-items: flex-start; }
-    .sidebar-toggle, .sidebar-resize-handle { display: none; }
-    .sidebar.is-collapsed .nav-label { display: inline; }
+    .sidebar-resize-handle { display: none; }
+    /* On mobile, collapsing hides the whole nav row (no icon-only rail —
+       there's no vertical space to save on a horizontal bar), leaving just
+       the crest + toggle so the section can be tucked away entirely. */
+    .sidebar.is-collapsed { width: 100% !important; }
+    .sidebar.is-collapsed .nav { display: none; }
+  }
+  
+  @media (max-width: 640px) {
+    .ledger-table thead th { padding: 10px 12px; font-size: 0.72rem; }
+    .ledger-table tbody td { padding: 10px 12px; font-size: 0.85rem; }
+    .icon-btn svg { width: 16px; height: 16px; }
+  }
+  
+  @media (max-width: 420px) {
+    .ledger-table thead th { padding: 8px 9px; font-size: 0.68rem; }
+    .ledger-table tbody td { padding: 8px 9px; font-size: 0.8rem; }
   }
   
   /* Reduced motion */
