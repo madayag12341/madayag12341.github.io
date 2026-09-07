@@ -1647,17 +1647,18 @@
    function loadSettingsForm() {
      const schoolYearSelect = document.getElementById("set-schoolYear");
      const currentSchoolYear = computeCurrentSchoolYear();
+     const currentStartYear = Number(currentSchoolYear.split("–")[0]);
      let options = "";
      for (let y = 1990; y <= 2050; y++) {
-       options += `<option value="${y}–${y + 1}">${y}–${y + 1}</option>`;
+       const value = `${y}–${y + 1}`;
+       // Any school year that hasn't started yet is disabled — the dropdown
+       // still shows the full 1990–2050 range, it just can't be picked.
+       options += `<option value="${value}" ${y > currentStartYear ? "disabled" : ""}>${value}</option>`;
      }
      schoolYearSelect.innerHTML = options;
-     // Locked to whatever school year today's date actually falls in — the
-     // full 1990–2050 range exists in the list, but it can't be changed away
-     // from the current one.
-     schoolYearSelect.value = currentSchoolYear;
-     schoolYearSelect.title = "School year is set automatically from today's date and can't be changed.";
-     settings.schoolYear = currentSchoolYear;
+     schoolYearSelect.disabled = false;
+     schoolYearSelect.value = settings.schoolYear || currentSchoolYear;
+     schoolYearSelect.title = "School years later than the current one can't be selected.";
    
      document.getElementById("set-period").value = settings.period;
      document.getElementById("set-scale").value = settings.scale;
@@ -1670,14 +1671,24 @@
      const saveSettingsBtn = document.getElementById("saveSettingsBtn");
      saveSettingsBtn.disabled = true;
    
-     // School year is locked to today's date, not admin-editable, so it's
-     // always recomputed fresh here rather than read from the (disabled) select.
-     const schoolYear = computeCurrentSchoolYear();
+     const schoolYear = document.getElementById("set-schoolYear").value;
      const passing = document.getElementById("set-passing").value;
    
-     if (passing === "") {
+     if (!schoolYear || passing === "") {
        showToast("Please fill in all required settings fields.", "warning");
        saveSettingsBtn.disabled = false;
+       return;
+     }
+   
+     // Defensive guard, in case a future year ever slipped past the disabled
+     // options (e.g. a stale selection) — never allow saving a school year
+     // that hasn't started yet.
+     const currentStartYear = Number(computeCurrentSchoolYear().split("–")[0]);
+     const chosenStartYear = Number(schoolYear.split("–")[0]);
+     if (chosenStartYear > currentStartYear) {
+       showToast("You can't set the school year ahead of the current one.", "warning");
+       saveSettingsBtn.disabled = false;
+       loadSettingsForm();
        return;
      }
    
