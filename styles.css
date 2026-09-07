@@ -716,6 +716,61 @@
   }
   
   /* ============================================
+     TOASTS
+     ============================================ */
+  .toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 999;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+    pointer-events: none;
+  }
+  
+  .toast {
+    background: var(--ink);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: var(--radius);
+    font-size: 0.88rem;
+    box-shadow: 0 8px 20px rgba(27, 42, 65, 0.28);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 320px;
+    opacity: 0;
+    transform: translateX(24px);
+    transition: opacity 0.22s ease, transform 0.22s ease;
+  }
+  
+  .toast.is-visible {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  
+  .toast.is-leaving {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  
+  .toast::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--good);
+    flex-shrink: 0;
+  }
+  
+  @media (max-width: 640px) {
+    .toast-container { top: 12px; right: 12px; left: 12px; align-items: stretch; }
+    .toast { max-width: none; }
+  }
+  
+  /* ============================================
      RESPONSIVE
      ============================================ */
   @media (max-width: 860px) {
