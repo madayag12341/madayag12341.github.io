@@ -114,7 +114,7 @@
        supabaseClient.from("students").select("*").order("id"),
        supabaseClient.from("grades").select("*"),
        supabaseClient.from("admins").select("*").order("id"),
-       supabaseClient.from("settings").select("*").single(),
+       supabaseClient.from("settings").select("*").maybeSingle(),
        supabaseClient.from("activity_log").select("*").order("happened_at", { ascending: false }).limit(200),
      ]);
 
