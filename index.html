@@ -40,17 +40,51 @@
 <script>
   const supabaseClient = supabase.createClient(
     "https://dmrdufunkqvjrfyxyimc.supabase.co",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtcmR1ZnVua3F2anJmeXh5aW1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg2MTQ0ODgsImV4cCI6MjEwNDE5MDQ4OH0.UBSCuqEfi9t7Ey6SRtdrPfoxHjqkapJa1jzqRkn6q2c" // <-- paste the same anon key used in app.js
+    "eyJhbGci••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••"
   );
 
   const form = document.getElementById("loginForm");
   const errorBox = document.getElementById("loginError");
   const submitBtn = document.getElementById("loginSubmit");
+  const params = new URLSearchParams(location.search);
 
-  // Already signed in? Skip straight to the dashboard.
-  supabaseClient.auth.getSession().then(({ data }) => {
-    if (data.session) window.location.href = "dashboard.html";
-  });
+  function showError(message) {
+    errorBox.textContent = message;
+    errorBox.classList.add("is-visible");
+  }
+  function resetSubmit() {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Sign in";
+  }
+
+  // A reason handed back by the dashboard's auth guard, so a bounce isn't silent.
+  if (params.get("err") === "no-profile") {
+    showError("Signed in, but this account has no matching row in profiles. Ask an admin to link it.");
+  }
+
+  // Already signed in? Skip straight to the dashboard — but never while an
+  // error is on screen, or the redirect ping-pongs and the message is unreadable.
+  if (!params.get("err")) {
+    supabaseClient.auth.getSession().then(({ data }) => {
+      if (data.session) window.location.href = "dashboard.html";
+    });
+  }
+
+  // email_for_username might be declared RETURNS text, RETURNS TABLE(...) or SETOF.
+  // The first gives a string, the others give an array. Coerce all of them down to a
+  // plain string, and treat anything else as "not found" — posting a non-string
+  // `email` to GoTrue is what makes /token?grant_type=password answer 500.
+  function coerceEmail(value) {
+    if (typeof value === "string") return value.trim();
+    if (Array.isArray(value)) return value.length ? coerceEmail(value[0]) : "";
+    if (value && typeof value === "object") {
+      const first = value.email ?? Object.values(value)[0];
+      return typeof first === "string" ? first.trim() : "";
+    }
+    return "";
+  }
+
+  const looksLikeEmail = (s) => typeof s === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -61,23 +95,44 @@
     const username = document.getElementById("loginUsername").value.trim();
     const password = document.getElementById("loginPassword").value;
 
-    const { data: email, error: lookupError } = await supabaseClient.rpc("email_for_username", { lookup_username: username });
+    let email = "";
 
-    if (lookupError || !email) {
-      errorBox.textContent = "Incorrect username or password.";
-      errorBox.classList.add("is-visible");
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Sign in";
+    if (looksLikeEmail(username)) {
+      email = username; // an email typed straight into the username box
+    } else {
+      const { data, error: lookupError } = await supabaseClient.rpc("email_for_username", {
+        lookup_username: username,
+      });
+      if (lookupError) {
+        console.error("email_for_username failed:", lookupError);
+        showError("Couldn't look up that username — see the browser console.");
+        resetSubmit();
+        return;
+      }
+      email = coerceEmail(data);
+    }
+
+    if (!looksLikeEmail(email)) {
+      showError("No account found for that username.");
+      resetSubmit();
       return;
     }
 
     const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
     if (error) {
-      errorBox.textContent = "Incorrect username or password.";
-      errorBox.classList.add("is-visible");
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Sign in";
+      // Log verbatim — this is what names the real cause of a 500.
+      console.error("signInWithPassword failed:", error.status, error.code, error.message, error);
+      if (error.status >= 500) {
+        showError(`Sign-in server error (${error.status}): ${error.message}`);
+      } else if (error.status === 400 || error.code === "invalid_credentials") {
+        showError("Incorrect username or password.");
+      } else if (error.code === "email_not_confirmed") {
+        showError("That account's email hasn't been confirmed yet.");
+      } else {
+        showError(error.message || "Couldn't sign in.");
+      }
+      resetSubmit();
       return;
     }
 
