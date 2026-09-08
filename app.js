@@ -29,33 +29,46 @@
    let data = { teachers: [], students: [], subjects: [], sections: [], admins: [] };
    let currentUser = null; // { id, username, role, teacherId, studentId }
 
-   /* ---- auth guard: redirect to index.html (the login page) unless there's a live Supabase session ---- */
-   async function requireAuth() {
-     const { data: sessionData } = await supabaseClient.auth.getSession();
-     if (!sessionData.session) {
-       window.location.href = "index.html";
-       return null;
-     }
+  /* ---- auth guard: redirect to index.html (the login page) unless there's a live Supabase session ---- */
+async function requireAuth() {
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  if (!sessionData.session) {
+    window.location.href = "index.html";
+    return null;
+  }
 
-     const userId = sessionData.session.user.id;
-     const { data: profile, error } = await supabaseClient.from("profiles").select("*").eq("id", userId).single();
-     if (error || !profile) {
-       console.error("No profile found for this login.", error);
-       await supabaseClient.auth.signOut();
-       window.location.href = "index.html";
-       return null;
-     }
+  const userId = sessionData.session.user.id;
+  // maybeSingle(), not single() — single() treats "no row" as an error, so a
+  // successful sign-in with no profile row looked identical to a failed login.
+  const { data: profile, error } = await supabaseClient
+    .from("profiles")
+    .select("*")
+    .eq("id", userId)
+    .maybeSingle();
 
-     currentUser = {
-       id: profile.id,
-       username: profile.username,
-       role: profile.role,
-       teacherId: profile.teacher_id,
-       studentId: profile.student_id,
-     };
-     return currentUser;
-   }
+  if (error) {
+    console.error("Couldn't read the profile for this login.", error);
+    await supabaseClient.auth.signOut();
+    window.location.href = "index.html?err=no-profile";
+    return null;
+  }
 
+  if (!profile) {
+    console.error("No profiles row with id =", userId);
+    await supabaseClient.auth.signOut();
+    window.location.href = "index.html?err=no-profile";
+    return null;
+  }
+
+  currentUser = {
+    id: profile.id,
+    username: profile.username,
+    role: profile.role,
+    teacherId: profile.teacher_id,
+    studentId: profile.student_id,
+  };
+  return currentUser;
+}
    /* ---- row (snake_case, DB) <-> record (camelCase, app) mapping ---- */
    function rowToTeacher(r) {
      return { id: r.id, name: r.name, email: r.email, contact: r.contact, status: r.status, username: r.username, position: r.position || "" };
