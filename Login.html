@@ -3,76 +3,640 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sign in — Meridian Grade School</title>
+<title>Meridian Grade School — Grading System</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;0,700;1,500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<div class="login-screen">
-  <div class="login-card">
-    <div class="login-crest">
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="crest">
       <div class="crest-mark">MG</div>
-      <div class="login-crest-text">
-        <span class="login-crest-name">Meridian</span>
-        <span class="login-crest-sub">Grade School</span>
+      <div class="crest-text">
+        <span class="crest-name">Meridian</span>
+        <span class="crest-sub">Grade School</span>
       </div>
+      <button type="button" class="sidebar-toggle" id="sidebarToggle" aria-label="Collapse navigation" aria-expanded="true" title="Collapse navigation">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+          <line x1="9" y1="4" x2="9" y2="20"></line>
+        </svg>
+      </button>
     </div>
 
-    <div class="login-error" id="loginError"></div>
+    <nav class="nav">
+      <button class="nav-item is-active" data-page="home">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 11.5 12 4l9 7.5"></path>
+            <path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"></path>
+          </svg>
+        </span>
+        <span class="nav-label">Dashboard</span>
+      </button>
+      <button class="nav-item" data-page="teachers">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+        </span>
+        <span class="nav-label">Teachers</span>
+      </button>
+      <button class="nav-item" data-page="students">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 10v6M2 10l10-5 10 5-10 5-10-5Z"></path>
+            <path d="M6 12v5c0 1.657 2.686 3 6 3s6-1.343 6-3v-5"></path>
+          </svg>
+        </span>
+        <span class="nav-label">Students</span>
+      </button>
+      <button class="nav-item" data-page="subjects">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"></path>
+          </svg>
+        </span>
+        <span class="nav-label">Subjects</span>
+      </button>
+      <button class="nav-item" data-page="sections">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
+            <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
+            <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
+            <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
+          </svg>
+        </span>
+        <span class="nav-label">Sections</span>
+      </button>
+      <button class="nav-item" data-page="settings">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path>
+          </svg>
+        </span>
+        <span class="nav-label">Admin Settings</span>
+      </button>
+      <button class="nav-item" data-page="portal" id="navPortal" hidden>
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2 2 7l10 5 10-5-10-5Z"></path>
+            <path d="M2 17l10 5 10-5"></path>
+            <path d="M2 12l10 5 10-5"></path>
+          </svg>
+        </span>
+        <span class="nav-label">My Portal</span>
+      </button>
+    </nav>
 
-    <form id="loginForm">
-      <label class="login-field">
-        <span>Email</span>
-        <input type="email" id="loginEmail" autocomplete="username" required>
-      </label>
-      <label class="login-field">
-        <span>Password</span>
-        <input type="password" id="loginPassword" autocomplete="current-password" required>
-      </label>
-      <button type="submit" class="login-submit" id="loginSubmit">Sign in</button>
+    <div class="sidebar-foot">
+      <div class="term-pill">S.Y. <span id="sidebarYear">2026–2027</span></div>
+      <div class="account-pill" id="accountPill">
+        <span id="accountLabel"></span>
+        <button type="button" id="logoutBtn" class="btn-ghost">Log out</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- HOME -->
+    <section class="page is-active" id="page-home">
+      <header class="page-head">
+        <div>
+          <p class="page-eyebrow">Overview</p>
+          <h1>Good day, Registrar.</h1>
+          <p class="page-desc">Here's where the school year stands right now.</p>
+        </div>
+      </header>
+
+      <div class="stat-row">
+        <div class="stat-tile">
+          <span class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+          </span>
+          <span class="stat-corner">Teachers</span>
+          <span class="stat-num" id="statTeachers">0</span>
+          <span class="stat-caption">on record</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 10v6M2 10l10-5 10 5-10 5-10-5Z"></path>
+              <path d="M6 12v5c0 1.657 2.686 3 6 3s6-1.343 6-3v-5"></path>
+            </svg>
+          </span>
+          <span class="stat-corner">Students</span>
+          <span class="stat-num" id="statStudents">0</span>
+          <span class="stat-caption">enrolled</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"></path>
+            </svg>
+          </span>
+          <span class="stat-corner">Subjects</span>
+          <span class="stat-num" id="statSubjects">0</span>
+          <span class="stat-caption">offered</span>
+        </div>
+        <div class="stat-tile">
+          <span class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
+              <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
+              <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
+              <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
+            </svg>
+          </span>
+          <span class="stat-corner">Sections</span>
+          <span class="stat-num" id="statSections">0</span>
+          <span class="stat-caption">running</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- TEACHERS -->
+    <section class="page" id="page-teachers">
+      <header class="page-head">
+        <div>
+          <p class="page-eyebrow">Faculty</p>
+          <h1>Teachers</h1>
+          <p class="page-desc">Everyone currently assigned to teach a class.</p>
+        </div>
+        <button class="btn-seal" data-add="teachers">+ Add teacher</button>
+      </header>
+
+      <div class="filter-bar">
+        <input type="text" id="teacherSearchInput" placeholder="Search by name…">
+
+        <select id="teacherFilterAdvisory" aria-label="Filter by advisory grade level">
+          <option value="all">All advisory grades</option>
+          <option value="Grade 7">Grade 7</option>
+          <option value="Grade 8">Grade 8</option>
+          <option value="Grade 9">Grade 9</option>
+          <option value="Grade 10">Grade 10</option>
+          <option value="none">No advisory</option>
+        </select>
+
+        <button type="button" class="btn-ghost" id="teacherSearchClear">Clear</button>
+      </div>
+
+      <div class="ledger-panel">
+        <table class="ledger-table" id="table-teachers">
+          <thead>
+            <tr>
+              <th>Name</th><th>Email</th><th>Contact no.</th><th>Advisory</th><th>Subject load</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p class="empty-note" id="empty-teachers" hidden>No teachers yet. Add the first one above.</p>
+      </div>
+    </section>
+
+    <!-- STUDENTS -->
+    <section class="page" id="page-students">
+      <header class="page-head">
+        <div>
+          <p class="page-eyebrow">Enrollment</p>
+          <h1>Students</h1>
+          <p class="page-desc">Every learner currently enrolled this year.</p>
+        </div>
+        <button class="btn-seal" data-add="students">+ Add student</button>
+      </header>
+
+      <div class="filter-bar">
+        <select id="studentFilterField" aria-label="Search field">
+          <option value="name">Search by name</option>
+          <option value="studentNo">Search by student no.</option>
+        </select>
+        <input type="text" id="studentSearchInput" placeholder="Type a name…">
+
+        <select id="studentFilterGrade" aria-label="Filter by grade level">
+          <option value="all">All grade levels</option>
+          <option value="Grade 7">Grade 7</option>
+          <option value="Grade 8">Grade 8</option>
+          <option value="Grade 9">Grade 9</option>
+          <option value="Grade 10">Grade 10</option>
+        </select>
+
+        <select id="studentFilterSection" aria-label="Filter by section">
+          <option value="all">All sections</option>
+        </select>
+
+        <button type="button" class="btn-ghost" id="studentSearchClear">Clear</button>
+      </div>
+
+      <div class="ledger-panel">
+        <table class="ledger-table" id="table-students">
+          <thead>
+            <tr>
+              <th>Student no.</th><th>Name</th><th>Grade level</th><th>Section</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p class="empty-note" id="empty-students" hidden>No students yet. Add the first one above.</p>
+      </div>
+    </section>
+
+    <!-- SUBJECTS -->
+    <section class="page" id="page-subjects">
+      <header class="page-head">
+        <div>
+          <p class="page-eyebrow">Curriculum</p>
+          <h1>Subjects</h1>
+          <p class="page-desc">What's being taught, and by whom.</p>
+        </div>
+        <div class="page-head-actions">
+          <button class="btn-seal" data-add="subjects">+ Add subject</button>
+        </div>
+      </header>
+
+      <div class="filter-bar">
+        <input type="text" id="subjectSearchInput" placeholder="Search code or name…">
+
+        <select id="subjectFilterGrade" aria-label="Filter by grade level">
+          <option value="all">All grade levels</option>
+          <option value="Grade 7">Grade 7</option>
+          <option value="Grade 8">Grade 8</option>
+          <option value="Grade 9">Grade 9</option>
+          <option value="Grade 10">Grade 10</option>
+        </select>
+
+        <select id="subjectFilterTeacher" aria-label="Filter by teacher">
+          <option value="all">All teachers</option>
+          <option value="none">Unassigned</option>
+        </select>
+
+        <button type="button" class="btn-ghost" id="subjectSearchClear">Clear</button>
+      </div>
+
+      <div class="ledger-panel">
+        <table class="ledger-table" id="table-subjects">
+          <thead>
+            <tr>
+              <th>Code</th><th>Subject</th><th>Units</th><th>Grade level</th><th>Teacher</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p class="empty-note" id="empty-subjects" hidden>No subjects yet. Add the first one above.</p>
+      </div>
+    </section>
+
+    <!-- SECTIONS -->
+    <section class="page" id="page-sections">
+      <header class="page-head">
+        <div>
+          <p class="page-eyebrow">Class groupings</p>
+          <h1>Sections</h1>
+          <p class="page-desc">How students are grouped, and who advises each group.</p>
+        </div>
+        <div class="page-head-actions">
+          <button class="btn-seal" data-add="sections">+ Add section</button>
+        </div>
+      </header>
+
+      <div class="filter-bar">
+        <select id="sectionFilterSection" aria-label="Filter by section">
+          <option value="all">All sections</option>
+        </select>
+
+        <select id="sectionFilterGrade" aria-label="Filter by grade level">
+          <option value="all">All grade levels</option>
+          <option value="Grade 7">Grade 7</option>
+          <option value="Grade 8">Grade 8</option>
+          <option value="Grade 9">Grade 9</option>
+          <option value="Grade 10">Grade 10</option>
+        </select>
+
+        <select id="sectionFilterAdviser" aria-label="Filter by adviser">
+          <option value="all">All advisers</option>
+          <option value="none">Unassigned</option>
+        </select>
+
+        <button type="button" class="btn-ghost" id="sectionSearchClear">Clear</button>
+      </div>
+
+      <div class="ledger-panel">
+        <table class="ledger-table" id="table-sections">
+          <thead>
+            <tr>
+              <th>Section</th><th>Grade level</th><th>Adviser</th><th>Students</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p class="empty-note" id="empty-sections" hidden>No sections yet. Add the first one above.</p>
+      </div>
+    </section>
+
+    <!-- ADMIN SETTINGS -->
+    <section class="page" id="page-settings">
+      <header class="page-head">
+        <div>
+          <p class="page-eyebrow">Configuration</p>
+          <h1>Admin settings</h1>
+          <p class="page-desc">School-wide defaults used across the grading system.</p>
+        </div>
+      </header>
+
+      <div class="ledger-panel accounts-panel">
+        <h2>User accounts</h2>
+        <p class="page-desc">Quick look at who's on the system, and what each role can do.</p>
+        <div class="account-btn-row">
+          <button type="button" class="btn-ghost" id="viewTeacherAccountsBtn">View teacher accounts</button>
+          <button type="button" class="btn-ghost" id="viewStudentAccountsBtn">View student accounts</button>
+        </div>
+      </div>
+
+      <div class="ledger-panel settings-panel">
+        <form id="settingsForm" novalidate>
+          <div class="field-grid">
+            <label class="field">
+              <span>School year</span>
+              <select id="set-schoolYear"></select>
+            </label>
+            <label class="field">
+              <span>Current grading period</span>
+              <select id="set-period">
+                <option>1st Quarter</option>
+                <option>2nd Quarter</option>
+                <option>3rd Quarter</option>
+                <option>4th Quarter</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Grading scale</span>
+              <select id="set-scale">
+                <option value="percentage">Percentage (0–100)</option>
+                <option value="gpa">GPA (1.0–5.0)</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Passing grade</span>
+              <input type="number" id="set-passing" min="0" max="100" required>
+            </label>
+          </div>
+          <div class="settings-actions">
+            <button type="submit" class="btn-seal" id="saveSettingsBtn">Save settings</button>
+            <button type="button" class="btn-seal" id="logsBtn">Logs</button>
+            <span class="save-flash" id="saveFlash" hidden>Saved.</span>
+          </div>
+        </form>
+
+        <div class="danger-zone">
+          <div>
+            <h3>Reset sample data</h3>
+            <p>Puts every list back to its starting sample records. Cannot be undone.</p>
+          </div>
+          <button class="btn-pen" id="resetDataBtn">Reset data</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STUDENT PORTAL -->
+    <section class="page" id="page-portal">
+      <header class="page-head">
+        <div>
+          <p class="page-eyebrow">My account</p>
+          <h1 id="portalStudentName">My Portal</h1>
+          <p class="page-desc" id="portalStudentMeta"></p>
+        </div>
+      </header>
+
+      <div class="ledger-panel">
+        <h2>Account balance</h2>
+        <p class="page-desc balance-figure" id="portalBalance"></p>
+      </div>
+
+      <div class="ledger-panel">
+        <h2>My subjects</h2>
+        <div class="grades-table-wrap">
+          <table class="ledger-table" id="portalSubjectsTable">
+            <thead><tr><th>Code</th><th>Subject</th><th>Units</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="empty-note" id="portalSubjectsEmpty" hidden>Subject visibility is currently turned off for your account. Ask an admin to enable it.</p>
+      </div>
+
+      <div class="ledger-panel">
+        <h2>My grades</h2>
+        <div class="grades-table-wrap">
+          <table class="ledger-table" id="portalGradesTable">
+            <thead><tr><th>Subject</th><th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>Final</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="empty-note" id="portalGradesEmpty" hidden>Grading card visibility is currently turned off for your account. Ask an admin to enable it.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- MODAL -->
+<div class="modal-backdrop" id="modalBackdrop" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2 id="modalTitle">Add record</h2>
+      <button class="modal-close" id="modalClose" aria-label="Close">&times;</button>
+    </div>
+    <form id="modalForm" novalidate>
+      <div class="field-grid" id="modalFields"></div>
+      <div class="modal-actions" id="modalActions">
+        <button type="button" class="btn-ghost" id="modalCancel">Cancel</button>
+        <button type="submit" class="btn-seal" id="modalSubmit">Save</button>
+      </div>
     </form>
   </div>
 </div>
 
+<!-- CONFIRM DELETE -->
+<div class="modal-backdrop" id="confirmBackdrop" hidden>
+  <div class="modal-card modal-card--small" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2>Delete this record?</h2>
+    </div>
+    <p class="confirm-text" id="confirmText">This can't be undone.</p>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="confirmCancel">Cancel</button>
+      <button type="button" class="btn-pen" id="confirmDelete">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- SUBJECT LOAD -->
+<div class="modal-backdrop" id="loadBackdrop" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2 id="loadTitle">Subject load</h2>
+      <button class="modal-close" id="loadClose" aria-label="Close">&times;</button>
+    </div>
+
+    <div class="grades-table-wrap">
+      <table class="ledger-table" id="loadTable">
+        <thead>
+          <tr><th>Code</th><th>Subject</th><th></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="empty-note" id="loadEmpty" hidden>No subjects assigned yet.</p>
+
+    <div class="load-add-row">
+      <select id="loadAddSelect"></select>
+      <button type="button" class="btn-seal" id="loadAddBtn">Add subject</button>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="loadDone">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- GRADING CARD SHEET -->
+<div class="modal-backdrop" id="gradesBackdrop" hidden>
+  <div class="modal-card modal-card--wide" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2 id="gradesTitle">Grading card sheet</h2>
+      <button class="modal-close" id="gradesClose" aria-label="Close">&times;</button>
+    </div>
+    <p class="grades-period-note" id="gradesPeriodNote"></p>
+
+    <div class="grades-table-wrap">
+      <table class="ledger-table" id="gradesTable">
+        <thead>
+          <tr><th>Subject</th><th>1st Grading</th><th>2nd Grading</th><th>3rd Grading</th><th>4th Grading</th><th>Final rating</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="gradesDone">Close</button>
+      <button type="button" class="btn-seal" id="gradesSaveBtn">Save grades</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOGS -->
+<div class="modal-backdrop" id="logsBackdrop" hidden>
+  <div class="modal-card modal-card--wide" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2>Logs</h2>
+      <button class="modal-close" id="logsClose" aria-label="Close">&times;</button>
+    </div>
+    <p class="page-desc">Every add, edit, and delete recorded across the system.</p>
+
+    <div class="filter-bar">
+      <select id="logsFilterCategory" aria-label="Filter by category">
+        <option value="all">All logs</option>
+        <option value="Student">Student</option>
+        <option value="Teacher">Teacher</option>
+        <option value="Admin">Admin</option>
+      </select>
+    </div>
+
+    <div class="grades-table-wrap">
+      <table class="ledger-table" id="logsTable">
+        <thead>
+          <tr><th>Date</th><th>Time</th><th>Name</th><th>Category</th><th>Action</th><th>Details</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="empty-note" id="empty-logs" hidden>No logs for this filter yet.</p>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="logsDone">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- TEACHER ACCOUNTS -->
+<div class="modal-backdrop" id="teacherAccountsBackdrop" hidden>
+  <div class="modal-card modal-card--wide" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2>Teacher accounts</h2>
+      <button class="modal-close" id="teacherAccountsClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="grades-table-wrap">
+      <table class="ledger-table" id="teacherAccountsTable">
+        <thead>
+          <tr><th>Name</th><th>Username</th><th>Status</th><th>Position</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="teacherAccountsDone">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- STUDENT ACCOUNTS -->
+<div class="modal-backdrop" id="studentAccountsBackdrop" hidden>
+  <div class="modal-card modal-card--wide" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2>Student accounts</h2>
+      <button class="modal-close" id="studentAccountsClose" aria-label="Close">&times;</button>
+    </div>
+
+    <div class="grades-table-wrap">
+      <table class="ledger-table stacked-section" id="studentAccountsTable">
+        <thead>
+          <tr><th>Name</th><th>Student no.</th><th>Grade level</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="studentAccountsDone">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- STUDENT CREDENTIALS (per-student edit) -->
+<div class="modal-backdrop" id="studentCredentialsBackdrop" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2 id="studentCredentialsTitle">Student access</h2>
+      <button class="modal-close" id="studentCredentialsClose" aria-label="Close">&times;</button>
+    </div>
+    <p class="grades-period-note" id="studentCredentialsSubtitle">What this student's login can do:</p>
+    <div class="checkbox-list" id="studentCredentialsList"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="studentCredentialsDone">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOASTS -->
+<div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-  const supabaseClient = supabase.createClient(
-    "https://dmrdufunkqvjrfyxyimc.supabase.co",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtcmR1ZnVua3F2anJmeXh5aW1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg2MTQ0ODgsImV4cCI6MjEwNDE5MDQ4OH0.UBSCuqEfi9t7Ey6SRtdrPfoxHjqkapJa1jzqRkn6q2c" // <-- paste the same anon key used in app.js
-  );
-
-  const form = document.getElementById("loginForm");
-  const errorBox = document.getElementById("loginError");
-  const submitBtn = document.getElementById("loginSubmit");
-
-  // Already signed in? Skip straight to the dashboard.
-  supabaseClient.auth.getSession().then(({ data }) => {
-    if (data.session) window.location.href = "index.html";
-  });
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    errorBox.classList.remove("is-visible");
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Signing in…";
-
-    const email = document.getElementById("loginEmail").value.trim();
-    const password = document.getElementById("loginPassword").value;
-
-    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-
-    if (error) {
-      errorBox.textContent = "Incorrect email or password.";
-      errorBox.classList.add("is-visible");
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Sign in";
-      return;
-    }
-
-    window.location.href = "index.html";
-  });
-</script>
+<script src="app.js"></script>
 </body>
 </html>
