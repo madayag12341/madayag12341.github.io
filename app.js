@@ -6,7 +6,7 @@
    ============================================ */
    const supabaseClient = supabase.createClient(
      "https://dmrdufunkqvjrfyxyimc.supabase.co",
-     "YOUR_SUPABASE_ANON_KEY" // <-- paste your project's anon/public key here
+     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtcmR1ZnVua3F2anJmeXh5aW1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg2MTQ0ODgsImV4cCI6MjEwNDE5MDQ4OH0.UBSCuqEfi9t7Ey6SRtdrPfoxHjqkapJa1jzqRkn6q2c" // <-- paste your project's anon/public key here
    );
 
    const TABLE_FOR_ENTITY = {
