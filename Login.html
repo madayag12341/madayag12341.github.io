@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign in — Meridian Grade School</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;0,700;1,500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="login-screen">
+  <div class="login-card">
+    <div class="login-crest">
+      <div class="crest-mark">MG</div>
+      <div class="login-crest-text">
+        <span class="login-crest-name">Meridian</span>
+        <span class="login-crest-sub">Grade School</span>
+      </div>
+    </div>
+
+    <div class="login-error" id="loginError"></div>
+
+    <form id="loginForm">
+      <label class="login-field">
+        <span>Email</span>
+        <input type="email" id="loginEmail" autocomplete="username" required>
+      </label>
+      <label class="login-field">
+        <span>Password</span>
+        <input type="password" id="loginPassword" autocomplete="current-password" required>
+      </label>
+      <button type="submit" class="login-submit" id="loginSubmit">Sign in</button>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const supabaseClient = supabase.createClient(
+    "https://dmrdufunkqvjrfyxyimc.supabase.co",
+    "YOUR_SUPABASE_ANON_KEY" // <-- paste the same anon key used in app.js
+  );
+
+  const form = document.getElementById("loginForm");
+  const errorBox = document.getElementById("loginError");
+  const submitBtn = document.getElementById("loginSubmit");
+
+  // Already signed in? Skip straight to the dashboard.
+  supabaseClient.auth.getSession().then(({ data }) => {
+    if (data.session) window.location.href = "index.html";
+  });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errorBox.classList.remove("is-visible");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Signing in…";
+
+    const email = document.getElementById("loginEmail").value.trim();
+    const password = document.getElementById("loginPassword").value;
+
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      errorBox.textContent = "Incorrect email or password.";
+      errorBox.classList.add("is-visible");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Sign in";
+      return;
+    }
+
+    window.location.href = "index.html";
+  });
+</script>
+</body>
+</html>
