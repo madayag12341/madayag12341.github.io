@@ -174,6 +174,26 @@ async function syncSubjectTeachers(subjectId, teacherIds) {
   }
 }
 
+async function createLoginFor(entityKey, recordId, draft) {
+  if (!draft.username || !draft.password) return;
+  const { error } = await supabaseClient.functions.invoke("create-user", {
+    body: {
+      email: draft.email || `${draft.username}@meridian.example.com`,
+      password: draft.password,
+      username: draft.username,
+      role: entityKey === "teachers" ? "teacher" : "student",
+      teacher_id: entityKey === "teachers" ? recordId : null,
+      student_id: entityKey === "students" ? recordId : null,
+    },
+  });
+  if (error) {
+    console.error("create-user failed:", error);
+    showToast("Record saved, but the login wasn't created.", "error");
+    return;
+  }
+  showToast("Login created.", "success");
+}
+
 async function persistEntitySave(entityKey, mode, draft) {
   const table = TABLE_FOR_ENTITY[entityKey];
   const mapper = ROW_MAPPERS[entityKey];
@@ -185,6 +205,11 @@ async function persistEntitySave(entityKey, mode, draft) {
       const record = data[entityKey].find(r => r.id === tempId);
       if (record) record.id = inserted.id;
       if (entityKey === "subjects") await syncSubjectTeachers(inserted.id, draft.teacherIds || []);
+      // The teachers/students tables hold no password — the login lives in
+      // auth.users, created server-side where the service_role key is safe.
+      if (entityKey === "teachers" || entityKey === "students") {
+        await createLoginFor(entityKey, inserted.id, draft);
+      }
       renderAll();
     } else {
       const { error } = await supabaseClient.from(table).update(mapper(draft)).eq("id", draft.id);
@@ -196,7 +221,6 @@ async function persistEntitySave(entityKey, mode, draft) {
     showToast("Couldn't save to the database — check your connection.", "error");
   }
 }
-
 function persistEntityDelete(entityKey, id) {
   const table = TABLE_FOR_ENTITY[entityKey];
   supabaseClient.from(table).delete().eq("id", id).then(({ error }) => {
