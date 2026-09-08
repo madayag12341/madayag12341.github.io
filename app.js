@@ -29,11 +29,11 @@
    let data = { teachers: [], students: [], subjects: [], sections: [], admins: [] };
    let currentUser = null; // { id, username, role, teacherId, studentId }
 
-   /* ---- auth guard: redirect to login.html unless there's a live Supabase session ---- */
+   /* ---- auth guard: redirect to index.html (the login page) unless there's a live Supabase session ---- */
    async function requireAuth() {
      const { data: sessionData } = await supabaseClient.auth.getSession();
      if (!sessionData.session) {
-       window.location.href = "login.html";
+       window.location.href = "index.html";
        return null;
      }
 
@@ -42,7 +42,7 @@
      if (error || !profile) {
        console.error("No profile found for this login.", error);
        await supabaseClient.auth.signOut();
-       window.location.href = "login.html";
+       window.location.href = "index.html";
        return null;
      }
 
@@ -795,7 +795,7 @@
 
    document.getElementById("logoutBtn").addEventListener("click", async () => {
      await supabaseClient.auth.signOut();
-     window.location.href = "login.html";
+     window.location.href = "index.html";
    });
 
    /* ---- lock the UI down to what this role is allowed to see/do ----
@@ -1873,7 +1873,7 @@
       ============================================ */
    (async function init() {
      const user = await requireAuth();
-     if (!user) return; // requireAuth() already redirected to login.html
+     if (!user) return; // requireAuth() already redirected to index.html
      await loadAllData();
      loadSettingsForm();
      renderAll();
