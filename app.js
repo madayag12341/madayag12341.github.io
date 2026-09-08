@@ -6,7 +6,7 @@
    ============================================ */
    const supabaseClient = supabase.createClient(
      "https://dmrdufunkqvjrfyxyimc.supabase.co",
-     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtcmR1ZnVua3F2anJmeXh5aW1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg2MTQ0ODgsImV4cCI6MjEwNDE5MDQ4OH0.UBSCuqEfi9t7Ey6SRtdrPfoxHjqkapJa1jzqRkn6q2c" // <-- paste your project's anon/public key here
+     "YOUR_SUPABASE_ANON_KEY" // <-- paste your project's anon/public key here
    );
 
    const TABLE_FOR_ENTITY = {
@@ -27,6 +27,34 @@
    ];
 
    let data = { teachers: [], students: [], subjects: [], sections: [], admins: [] };
+   let currentUser = null; // { id, username, role, teacherId, studentId }
+
+   /* ---- auth guard: redirect to login.html unless there's a live Supabase session ---- */
+   async function requireAuth() {
+     const { data: sessionData } = await supabaseClient.auth.getSession();
+     if (!sessionData.session) {
+       window.location.href = "login.html";
+       return null;
+     }
+
+     const userId = sessionData.session.user.id;
+     const { data: profile, error } = await supabaseClient.from("profiles").select("*").eq("id", userId).single();
+     if (error || !profile) {
+       console.error("No profile found for this login.", error);
+       await supabaseClient.auth.signOut();
+       window.location.href = "login.html";
+       return null;
+     }
+
+     currentUser = {
+       id: profile.id,
+       username: profile.username,
+       role: profile.role,
+       teacherId: profile.teacher_id,
+       studentId: profile.student_id,
+     };
+     return currentUser;
+   }
 
    /* ---- row (snake_case, DB) <-> record (camelCase, app) mapping ---- */
    function rowToTeacher(r) {
@@ -42,7 +70,7 @@
      return {
        id: r.id, studentNo: r.student_no, firstName: r.first_name, middleName: r.middle_name,
        lastName: r.last_name, name: r.name, birthDate: r.birth_date, gradeLevel: r.grade_level,
-       sectionId: r.section_id, status: r.status, username: r.username,
+       sectionId: r.section_id, status: r.status, username: r.username, balance: r.balance,
        permissions: {
          studentsViewSubjects: r.can_view_subjects,
          studentsViewGradingCard: r.can_view_grading_card,
@@ -86,7 +114,7 @@
        supabaseClient.from("students").select("*").order("id"),
        supabaseClient.from("grades").select("*"),
        supabaseClient.from("admins").select("*").order("id"),
-       supabaseClient.from("settings").select("*").maybeSingle(),       
+       supabaseClient.from("settings").select("*").single(),
        supabaseClient.from("activity_log").select("*").order("happened_at", { ascending: false }).limit(200),
      ]);
 
@@ -665,11 +693,29 @@
      </svg>`,
    };
 
+   function isSectionAdviser(sectionId) {
+     const section = data.sections.find(s => s.id === sectionId);
+     return !!section && !!currentUser && section.adviserId === currentUser.teacherId;
+   }
+
    function buildRowActions(entityKey, row) {
+     const role = currentUser ? currentUser.role : "admin";
      const parts = [];
+
      if (entityKey === "students") {
        parts.push(`<button class="icon-btn icon-btn--grades" data-grades="${row.id}" title="Grading card sheet" aria-label="Grading card sheet">${ROW_ICONS.grades}</button>`);
+       const canEdit = role === "admin" || (role === "teacher" && isSectionAdviser(row.sectionId));
+       if (canEdit) {
+         parts.push(`<button class="icon-btn" data-edit="${entityKey}:${row.id}" title="Edit" aria-label="Edit">${ROW_ICONS.edit}</button>`);
+       }
+       if (role === "admin") {
+         parts.push(`<button class="icon-btn link-delete" data-delete="${entityKey}:${row.id}" title="Delete" aria-label="Delete">${ROW_ICONS.delete}</button>`);
+       }
+       return parts.length ? parts.join("") : null;
      }
+
+     // Teachers / subjects / sections: only admin may edit or delete.
+     if (role !== "admin") return null;
      parts.push(`<button class="icon-btn" data-edit="${entityKey}:${row.id}" title="Edit" aria-label="Edit">${ROW_ICONS.edit}</button>`);
      parts.push(`<button class="icon-btn link-delete" data-delete="${entityKey}:${row.id}" title="Delete" aria-label="Delete">${ROW_ICONS.delete}</button>`);
      return parts.join("");
@@ -734,14 +780,103 @@
    /* ============================================
       NAVIGATION
       ============================================ */
+   function activateNavPage(pageName) {
+     document.querySelectorAll(".nav-item").forEach(b => b.classList.remove("is-active"));
+     document.querySelectorAll(".page").forEach(p => p.classList.remove("is-active"));
+     const navBtn = document.querySelector(`.nav-item[data-page="${pageName}"]`);
+     const page = document.getElementById(`page-${pageName}`);
+     if (navBtn) navBtn.classList.add("is-active");
+     if (page) page.classList.add("is-active");
+   }
+
    document.querySelectorAll(".nav-item").forEach(btn => {
-     btn.addEventListener("click", () => {
-       document.querySelectorAll(".nav-item").forEach(b => b.classList.remove("is-active"));
-       document.querySelectorAll(".page").forEach(p => p.classList.remove("is-active"));
-       btn.classList.add("is-active");
-       document.getElementById(`page-${btn.dataset.page}`).classList.add("is-active");
-     });
+     btn.addEventListener("click", () => activateNavPage(btn.dataset.page));
    });
+
+   document.getElementById("logoutBtn").addEventListener("click", async () => {
+     await supabaseClient.auth.signOut();
+     window.location.href = "login.html";
+   });
+
+   /* ---- lock the UI down to what this role is allowed to see/do ----
+      Row-level data scoping (which teachers/students/subjects show up
+      at all) is enforced by Supabase RLS — this just hides nav/buttons
+      that would 404 or fail on save for this role. ---- */
+   function applyRoleRestrictions() {
+     const accountLabel = document.getElementById("accountLabel");
+     accountLabel.textContent = `${currentUser.username} · ${currentUser.role}`;
+
+     const teachersNav = document.querySelector('.nav-item[data-page="teachers"]');
+     const settingsNav = document.querySelector('.nav-item[data-page="settings"]');
+     const studentsNav = document.querySelector('.nav-item[data-page="students"]');
+     const subjectsNav = document.querySelector('.nav-item[data-page="subjects"]');
+     const sectionsNav = document.querySelector('.nav-item[data-page="sections"]');
+     const portalNav = document.getElementById("navPortal");
+
+     if (currentUser.role === "admin") {
+       return; // full access, nothing to hide
+     }
+
+     if (currentUser.role === "teacher") {
+       teachersNav.hidden = true;
+       settingsNav.hidden = true;
+       // Only admin creates new records — teachers work within what's assigned to them.
+       document.querySelectorAll("[data-add]").forEach(btn => { btn.hidden = true; });
+       return;
+     }
+
+     if (currentUser.role === "student") {
+       teachersNav.hidden = !data.teachers.length; // RLS already hides this table unless their toggle is on
+       settingsNav.hidden = true;
+       studentsNav.hidden = true;
+       subjectsNav.hidden = true;
+       sectionsNav.hidden = true;
+       portalNav.hidden = false;
+       document.querySelectorAll("[data-add]").forEach(btn => { btn.hidden = true; });
+       renderStudentPortal();
+       activateNavPage("portal");
+     }
+   }
+
+   function renderStudentPortal() {
+     const student = data.students.find(s => s.id === currentUser.studentId);
+     if (!student) return;
+
+     document.getElementById("portalStudentName").textContent = student.name;
+     document.getElementById("portalStudentMeta").textContent = `${student.studentNo} · ${student.gradeLevel}`;
+     document.getElementById("portalBalance").textContent = `₱${Number(student.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+
+     const subjectsTbody = document.querySelector("#portalSubjectsTable tbody");
+     const subjectsEmpty = document.getElementById("portalSubjectsEmpty");
+     if (student.permissions.studentsViewSubjects && data.subjects.length) {
+       subjectsEmpty.hidden = true;
+       subjectsTbody.innerHTML = data.subjects.map(s => `<tr><td>${s.code}</td><td>${s.name}</td><td>${s.units}</td></tr>`).join("");
+     } else {
+       subjectsEmpty.hidden = false;
+       subjectsTbody.innerHTML = "";
+     }
+
+     const gradesTbody = document.querySelector("#portalGradesTable tbody");
+     const gradesEmpty = document.getElementById("portalGradesEmpty");
+     const subjectIds = Object.keys(student.grades || {});
+     if (student.permissions.studentsViewGradingCard && subjectIds.length) {
+       gradesEmpty.hidden = true;
+       gradesTbody.innerHTML = subjectIds.map(idStr => {
+         const subjectId = Number(idStr);
+         const subject = data.subjects.find(s => s.id === subjectId);
+         const g = student.grades[idStr];
+         const final = computeFinalRating(g);
+         return `<tr>
+           <td>${subject ? `${subject.code} — ${subject.name}` : "Subject"}</td>
+           <td>${fmtGrade(g.q1)}</td><td>${fmtGrade(g.q2)}</td><td>${fmtGrade(g.q3)}</td><td>${fmtGrade(g.q4)}</td>
+           <td>${fmtGrade(final)}</td>
+         </tr>`;
+       }).join("");
+     } else {
+       gradesEmpty.hidden = false;
+       gradesTbody.innerHTML = "";
+     }
+   }
    
    /* ============================================
       SIDEBAR — collapse/hide toggle
@@ -1737,8 +1872,11 @@
       INIT
       ============================================ */
    (async function init() {
+     const user = await requireAuth();
+     if (!user) return; // requireAuth() already redirected to login.html
      await loadAllData();
      loadSettingsForm();
      renderAll();
      renderLogs();
+     applyRoleRestrictions();
    })();
