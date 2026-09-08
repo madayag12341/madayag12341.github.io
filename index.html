@@ -24,8 +24,8 @@
 
     <form id="loginForm">
       <label class="login-field">
-        <span>Email</span>
-        <input type="email" id="loginEmail" autocomplete="username" required>
+        <span>Username</span>
+        <input type="text" id="loginUsername" autocomplete="username" required>
       </label>
       <label class="login-field">
         <span>Password</span>
@@ -58,13 +58,23 @@
     submitBtn.disabled = true;
     submitBtn.textContent = "Signing in…";
 
-    const email = document.getElementById("loginEmail").value.trim();
+    const username = document.getElementById("loginUsername").value.trim();
     const password = document.getElementById("loginPassword").value;
+
+    const { data: email, error: lookupError } = await supabaseClient.rpc("email_for_username", { lookup_username: username });
+
+    if (lookupError || !email) {
+      errorBox.textContent = "Incorrect username or password.";
+      errorBox.classList.add("is-visible");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Sign in";
+      return;
+    }
 
     const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
     if (error) {
-      errorBox.textContent = "Incorrect email or password.";
+      errorBox.textContent = "Incorrect username or password.";
       errorBox.classList.add("is-visible");
       submitBtn.disabled = false;
       submitBtn.textContent = "Sign in";
