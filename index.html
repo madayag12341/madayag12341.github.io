@@ -38,10 +38,25 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-  const supabaseClient = supabase.createClient(
-    "https://dmrdufunkqvjrfyxyimc.supabase.co",
-    "eyJhbGci••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••"
-  );
+  const SUPABASE_URL = "https://dmrdufunkqvjrfyxyimc.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGci••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••";
+
+  // HTTP headers are Latin-1 only. A curly quote, non-breaking space or an
+  // ellipsis from a truncated copy-paste makes every Supabase call die inside
+  // fetch() with an unhelpful "non ISO-8859-1 code point" error. Fail here
+  // instead, naming the exact character.
+  (function assertKeyIsHeaderSafe(key) {
+    const bad = [...key].findIndex(ch => ch.codePointAt(0) > 255);
+    if (bad !== -1) {
+      const ch = key[bad];
+      throw new Error(
+        `Supabase anon key has a non-ISO-8859-1 character at index ${bad}: "${ch}" ` +
+        `(U+${ch.codePointAt(0).toString(16).toUpperCase()}). Re-copy it from Project Settings > API.`
+      );
+    }
+  })(SUPABASE_ANON_KEY);
+
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   const form = document.getElementById("loginForm");
   const errorBox = document.getElementById("loginError");
@@ -62,18 +77,18 @@
     showError("Signed in, but this account has no matching row in profiles. Ask an admin to link it.");
   }
 
-  // Already signed in? Skip straight to the dashboard — but never while an
-  // error is on screen, or the redirect ping-pongs and the message is unreadable.
+  // Already signed in? Skip straight to the dashboard — but never while an error
+  // is on screen, or the redirect ping-pongs and the message can't be read.
   if (!params.get("err")) {
-    supabaseClient.auth.getSession().then(({ data }) => {
-      if (data.session) window.location.href = "dashboard.html";
-    });
+    supabaseClient.auth.getSession()
+      .then(({ data }) => { if (data.session) window.location.href = "dashboard.html"; })
+      .catch(err => console.error("getSession failed:", err));
   }
 
-  // email_for_username might be declared RETURNS text, RETURNS TABLE(...) or SETOF.
-  // The first gives a string, the others give an array. Coerce all of them down to a
-  // plain string, and treat anything else as "not found" — posting a non-string
-  // `email` to GoTrue is what makes /token?grant_type=password answer 500.
+  // email_for_username may be declared RETURNS text, RETURNS TABLE(...) or SETOF.
+  // The first gives a string, the others give an array. Coerce all of them to a
+  // plain string; anything else counts as "not found", because posting a
+  // non-string email to GoTrue answers 500 rather than 400.
   function coerceEmail(value) {
     if (typeof value === "string") return value.trim();
     if (Array.isArray(value)) return value.length ? coerceEmail(value[0]) : "";
@@ -90,7 +105,7 @@
     e.preventDefault();
     errorBox.classList.remove("is-visible");
     submitBtn.disabled = true;
-    submitBtn.textContent = "Signing in…";
+    submitBtn.textContent = "Signing in...";
 
     const username = document.getElementById("loginUsername").value.trim();
     const password = document.getElementById("loginPassword").value;
@@ -105,7 +120,7 @@
       });
       if (lookupError) {
         console.error("email_for_username failed:", lookupError);
-        showError("Couldn't look up that username — see the browser console.");
+        showError("Couldn't look up that username - see the browser console.");
         resetSubmit();
         return;
       }
@@ -121,9 +136,11 @@
     const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
     if (error) {
-      // Log verbatim — this is what names the real cause of a 500.
+      // Logged verbatim - this is what names the real cause of a 500.
       console.error("signInWithPassword failed:", error.status, error.code, error.message, error);
-      if (error.status >= 500) {
+      if (!error.status) {
+        showError("Couldn't reach the sign-in server. See the browser console.");
+      } else if (error.status >= 500) {
         showError(`Sign-in server error (${error.status}): ${error.message}`);
       } else if (error.status === 400 || error.code === "invalid_credentials") {
         showError("Incorrect username or password.");
