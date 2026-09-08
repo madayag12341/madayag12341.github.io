@@ -160,6 +160,11 @@
          status: (studentSeq % 13 === 0) ? "Inactive" : "Active",
          username: usernameFor(name),
          password: generatePassword(),
+         permissions: {
+           studentsViewSubjects: true,
+           studentsViewGradingCard: true,
+           studentsViewTeachersPage: true,
+         },
          _baseQ1: baseQ1,
          _baseQ2: baseQ2,
        });
@@ -1620,10 +1625,44 @@
      tbody.querySelectorAll("[data-edit-student]").forEach(btn => {
        btn.addEventListener("click", (e) => {
          const id = Number(e.currentTarget.dataset.editStudent);
-         document.getElementById("studentAccountsBackdrop").hidden = true;
-         openModal("students", "edit", id);
+         openStudentCredentialsModal(id);
        });
      });
+   }
+   
+   const STUDENT_PERMS = [
+     { key: "studentsViewSubjects", label: "View the subjects assigned to them" },
+     { key: "studentsViewGradingCard", label: "View their own grading card" },
+     { key: "studentsViewTeachersPage", label: "View the Teachers page" },
+   ];
+   
+   function openStudentCredentialsModal(id) {
+     const student = data.students.find(s => s.id === id);
+     if (!student) return;
+     if (!student.permissions) {
+       student.permissions = { studentsViewSubjects: true, studentsViewGradingCard: true, studentsViewTeachersPage: true };
+     }
+   
+     document.getElementById("studentCredentialsTitle").textContent = student.name;
+     document.getElementById("studentCredentialsSubtitle").textContent = `What ${student.name}'s login can do:`;
+   
+     const list = document.getElementById("studentCredentialsList");
+     list.innerHTML = STUDENT_PERMS.map(p => `
+       <label class="checkbox-option">
+         <input type="checkbox" data-cred="${p.key}" ${student.permissions[p.key] ? "checked" : ""}>
+         <span>${p.label}</span>
+       </label>`).join("");
+   
+     list.querySelectorAll("[data-cred]").forEach(cb => {
+       cb.addEventListener("change", (e) => {
+         const key = e.target.dataset.cred;
+         student.permissions[key] = e.target.checked;
+         const label = STUDENT_PERMS.find(p => p.key === key).label;
+         logActivity(`${e.target.checked ? "Granted" : "Removed"} access for ${student.name}: ${label}.`, "Admin", "Edit", student.name);
+       });
+     });
+   
+     document.getElementById("studentCredentialsBackdrop").hidden = false;
    }
    
    
@@ -1651,6 +1690,7 @@
    wireSimpleModalClose("logsBackdrop", "logsClose", "logsDone");
    wireSimpleModalClose("teacherAccountsBackdrop", "teacherAccountsClose", "teacherAccountsDone");
    wireSimpleModalClose("studentAccountsBackdrop", "studentAccountsClose", "studentAccountsDone");
+   wireSimpleModalClose("studentCredentialsBackdrop", "studentCredentialsClose", "studentCredentialsDone");
    
    /* ============================================
       ADMIN SETTINGS
