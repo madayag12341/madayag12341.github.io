@@ -83,7 +83,7 @@
        status: (i > 0 && i % 9 === 0) ? "Inactive" : "Active",
        username: usernameFor(name),
        password: generatePassword(),
-       adminAccess: false,
+       position: "",
      });
    }
 
@@ -1559,6 +1559,8 @@
    /* ============================================
       USER ACCOUNTS MODALS (Admin Settings)
       ============================================ */
+   const TEACHER_POSITIONS = ["Dean", "Vice Principal", "Guidance Counselor", "Disciplinary Officer"];
+
    function renderTeacherAccountsModal() {
      const tbody = document.querySelector("#teacherAccountsTable tbody");
      tbody.innerHTML = data.teachers.length ? data.teachers.map(t => `
@@ -1567,18 +1569,18 @@
          <td>${t.username || "—"}</td>
          <td>${statusTag(t.status)}</td>
          <td>
-           <label class="checkbox-option">
-             <input type="checkbox" data-admin-access="${t.id}" ${t.adminAccess ? "checked" : ""}>
-             <span>Administrator access</span>
-           </label>
+           <select data-position="${t.id}">
+             <option value="">— None —</option>
+             ${TEACHER_POSITIONS.map(p => `<option value="${p}" ${t.position === p ? "selected" : ""}>${p}</option>`).join("")}
+           </select>
          </td>
        </tr>`).join("") : `<tr><td colspan="4">No teacher accounts yet.</td></tr>`;
    
-     tbody.querySelectorAll("[data-admin-access]").forEach(cb => {
-       cb.addEventListener("change", (e) => {
-         const teacher = data.teachers.find(t => t.id === Number(e.target.dataset.adminAccess));
-         teacher.adminAccess = e.target.checked;
-         logActivity(`${e.target.checked ? "Granted" : "Removed"} administrator access for ${teacher.name}.`, "Admin", "Edit", teacher.name);
+     tbody.querySelectorAll("[data-position]").forEach(sel => {
+       sel.addEventListener("change", (e) => {
+         const teacher = data.teachers.find(t => t.id === Number(e.target.dataset.position));
+         teacher.position = e.target.value;
+         logActivity(`${e.target.value ? `Set position for ${teacher.name} to ${e.target.value}.` : `Cleared position for ${teacher.name}.`}`, "Admin", "Edit", teacher.name);
        });
      });
    }
@@ -1612,7 +1614,16 @@
          <td>${s.studentNo}</td>
          <td>${s.gradeLevel}</td>
          <td>${statusTag(s.status)}</td>
-       </tr>`).join("") : `<tr><td colspan="4">No student accounts yet.</td></tr>`;
+         <td><button type="button" class="icon-btn" data-edit-student="${s.id}" title="Edit" aria-label="Edit">${ROW_ICONS.edit}</button></td>
+       </tr>`).join("") : `<tr><td colspan="5">No student accounts yet.</td></tr>`;
+   
+     tbody.querySelectorAll("[data-edit-student]").forEach(btn => {
+       btn.addEventListener("click", (e) => {
+         const id = Number(e.currentTarget.dataset.editStudent);
+         document.getElementById("studentAccountsBackdrop").hidden = true;
+         openModal("students", "edit", id);
+       });
+     });
    }
    
    
