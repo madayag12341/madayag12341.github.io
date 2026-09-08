@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  
+
 <div class="app">
 
   <!-- SIDEBAR -->
@@ -87,10 +87,24 @@
         </span>
         <span class="nav-label">Admin Settings</span>
       </button>
+      <button class="nav-item" data-page="portal" id="navPortal" hidden>
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2 2 7l10 5 10-5-10-5Z"></path>
+            <path d="M2 17l10 5 10-5"></path>
+            <path d="M2 12l10 5 10-5"></path>
+          </svg>
+        </span>
+        <span class="nav-label">My Portal</span>
+      </button>
     </nav>
 
     <div class="sidebar-foot">
       <div class="term-pill">S.Y. <span id="sidebarYear">2026–2027</span></div>
+      <div class="account-pill" id="accountPill">
+        <span id="accountLabel"></span>
+        <button type="button" id="logoutBtn" class="btn-ghost">Log out</button>
+      </div>
     </div>
   </aside>
 
@@ -397,6 +411,44 @@
           </div>
           <button class="btn-pen" id="resetDataBtn">Reset data</button>
         </div>
+      </div>
+    </section>
+
+    <!-- STUDENT PORTAL -->
+    <section class="page" id="page-portal">
+      <header class="page-head">
+        <div>
+          <p class="page-eyebrow">My account</p>
+          <h1 id="portalStudentName">My Portal</h1>
+          <p class="page-desc" id="portalStudentMeta"></p>
+        </div>
+      </header>
+
+      <div class="ledger-panel">
+        <h2>Account balance</h2>
+        <p class="page-desc balance-figure" id="portalBalance"></p>
+      </div>
+
+      <div class="ledger-panel">
+        <h2>My subjects</h2>
+        <div class="grades-table-wrap">
+          <table class="ledger-table" id="portalSubjectsTable">
+            <thead><tr><th>Code</th><th>Subject</th><th>Units</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="empty-note" id="portalSubjectsEmpty" hidden>Subject visibility is currently turned off for your account. Ask an admin to enable it.</p>
+      </div>
+
+      <div class="ledger-panel">
+        <h2>My grades</h2>
+        <div class="grades-table-wrap">
+          <table class="ledger-table" id="portalGradesTable">
+            <thead><tr><th>Subject</th><th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>Final</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="empty-note" id="portalGradesEmpty" hidden>Grading card visibility is currently turned off for your account. Ask an admin to enable it.</p>
       </div>
     </section>
 
