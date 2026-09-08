@@ -1,209 +1,163 @@
 /* ============================================
-   SAMPLE DATA
-   In-memory only for this phase — resets on page
-   reload. Swap this for localStorage or a real
-   backend in a later phase.
+   SUPABASE CONNECTION
+   Reads/writes go straight to the tables from
+   schema.sql. Fill in the anon key below, then
+   the app loads real data instead of samples.
    ============================================ */
-   let nextId = 100;
-   const newId = () => nextId++;
-   
-   /* ---- name pools + small helpers used only to seed sample records ---- */
-   function slugify(str) {
-     return str.toLowerCase().replace(/[^a-z]/g, "");
-   }
-   const usedUsernames = new Set();
-   function usernameFor(fullName) {
-     const parts = fullName.split(" ");
-     const base = slugify(parts[0][0] + parts[parts.length - 1]);
-     let candidate = base;
-     let n = 2;
-     while (usedUsernames.has(candidate)) {
-       candidate = `${base}${n}`;
-       n++;
-     }
-     usedUsernames.add(candidate);
-     return candidate;
-   }
-   function phoneFor(seed) {
-     const mid = String(200 + (seed * 37) % 800).padStart(3, "0");
-     const last = String(1000 + (seed * 91) % 9000).padStart(4, "0");
-     return `09${(10 + (seed % 8))}-${mid}-${last}`;
-   }
+   const supabaseClient = supabase.createClient(
+     "https://dmrdufunkqvjrfyxyimc.supabase.co",
+     "YOUR_SUPABASE_ANON_KEY" // <-- paste your project's anon/public key here
+   );
 
-   const TEACHER_FIRST_NAMES = [
-     "Marisol", "Daniel", "Priya", "Louie", "Ramon", "Cecilia", "Arturo", "Beatriz",
-     "Ernesto", "Felicia", "Gregorio", "Herminia", "Ignacio", "Josefina", "Leandro",
-     "Milagros", "Norberto", "Ofelia", "Pablo", "Remedios",
-   ];
-   const TEACHER_LAST_NAMES = [
-     "Andrade", "Reyes", "Kapoor", "Fernandez", "Aguilar", "Belmonte", "Concepcion",
-     "Delgado", "Espino", "Feliciano", "Guanzon", "Hilario", "Isip", "Jimenez",
-     "Katigbak", "Lozada", "Medina", "Nazario", "Orosa", "Panganiban",
-   ];
+   const TABLE_FOR_ENTITY = {
+     teachers: "teachers",
+     students: "students",
+     subjects: "subjects",
+     sections: "sections",
+   };
 
-   const STUDENT_FIRST_NAMES = [
-     "Ava", "Noah", "Isla", "Mateo", "Lian", "Sofia", "Diego", "Mika", "Rafael", "Elena",
-     "Gabriel", "Camille", "Joshua", "Andrea", "Marco", "Bianca", "Enzo", "Nadia", "Julian",
-     "Theresa", "Xander", "Lourdes", "Rico", "Angelica", "Miguel", "Faith", "Julio",
-     "Charmaine", "Adrian", "Kristine", "Paolo", "Michelle", "Vince", "Angela", "Carlo",
-     "Patricia", "Nathaniel", "Cassandra", "Emmanuel", "Bea", "Christian", "Danica",
-     "Jerome", "Alyssa", "Kevin", "Trisha", "Aaron", "Jasmine", "Ryan", "Kimberly",
-   ];
-   const STUDENT_LAST_NAMES = [
-     "Bernal", "Villanueva", "Domingo", "Cruz", "Ocampo", "Santos", "Garcia", "Torres",
-     "Mercado", "Aquino", "Bautista", "Castillo", "De Leon", "Gonzales", "Herrera",
-     "Ibarra", "Javier", "Lacson", "Manalo", "Navarro", "Ongsiako", "Pineda", "Quimpo",
-     "Ramos", "Salazar", "Tolentino", "Uy", "Valdez",
-   ];
+   let nextId = 1;
+   const newId = () => nextId++; // temporary client-side id, swapped for the real DB id after insert
 
+   const GRADE_LEVELS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10"];
    const SECTION_NAME_POOL = [
      "Narra", "Molave", "Acacia", "Mahogany", "Ipil", "Yakal", "Kamagong", "Banaba",
      "Kalachuchi", "Sampaguita", "Ilang-Ilang", "Camia", "Waling-Waling", "Champaca",
      "Dapdap", "Tanguile",
    ];
-   const GRADE_LEVELS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10"];
-   // Typical starting age per grade level, used only to generate plausible
-   // sample birthdates (e.g. a Grade 7 student is usually ~12–13 years old).
-   const GRADE_BIRTH_YEAR_BASE = { "Grade 7": 2014, "Grade 8": 2013, "Grade 9": 2012, "Grade 10": 2011 };
-   const SECTIONS_PER_GRADE = { "Grade 7": 4, "Grade 8": 4, "Grade 9": 3, "Grade 10": 4 };
-   const STUDENTS_PER_SECTION = 10;
 
    let data = { teachers: [], students: [], subjects: [], sections: [], admins: [] };
 
-   /* ---- 20 teachers ---- */
-   for (let i = 0; i < 20; i++) {
-     const first = TEACHER_FIRST_NAMES[i];
-     const last = TEACHER_LAST_NAMES[i];
-     const name = `${first} ${last}`;
-     data.teachers.push({
-       id: newId(),
-       name,
-       email: `${slugify(first[0] + last)}@meridian.edu`,
-       contact: phoneFor(i),
-       status: (i > 0 && i % 9 === 0) ? "Inactive" : "Active",
-       username: usernameFor(name),
-       password: generatePassword(),
-       position: "",
-     });
+   /* ---- row (snake_case, DB) <-> record (camelCase, app) mapping ---- */
+   function rowToTeacher(r) {
+     return { id: r.id, name: r.name, email: r.email, contact: r.contact, status: r.status, username: r.username, position: r.position || "" };
+   }
+   function rowToSection(r) {
+     return { id: r.id, name: r.name, gradeLevel: r.grade_level, adviserId: r.adviser_id };
+   }
+   function rowToSubject(r) {
+     return { id: r.id, code: r.code, name: r.name, units: r.units, gradeLevel: r.grade_level, teacherIds: [] };
+   }
+   function rowToStudent(r) {
+     return {
+       id: r.id, studentNo: r.student_no, firstName: r.first_name, middleName: r.middle_name,
+       lastName: r.last_name, name: r.name, birthDate: r.birth_date, gradeLevel: r.grade_level,
+       sectionId: r.section_id, status: r.status, username: r.username,
+       permissions: {
+         studentsViewSubjects: r.can_view_subjects,
+         studentsViewGradingCard: r.can_view_grading_card,
+         studentsViewTeachersPage: r.can_view_teachers_page,
+       },
+       grades: {},
+     };
+   }
+   function rowToAdmin(r) {
+     return { id: r.id, name: r.name, role: r.role, username: r.username, status: r.status };
    }
 
-   /* ---- 15 sections (3-4 per grade level) ---- */
-   let sectionPoolCursor = 0;
-   let adviserCursor = 0;
-   GRADE_LEVELS.forEach(grade => {
-     for (let i = 0; i < SECTIONS_PER_GRADE[grade]; i++) {
-       const treeName = SECTION_NAME_POOL[sectionPoolCursor % SECTION_NAME_POOL.length];
-       sectionPoolCursor++;
-       const adviser = data.teachers[adviserCursor % data.teachers.length];
-       adviserCursor++;
-       data.sections.push({
-         id: newId(),
-         name: `${grade} – ${treeName}`,
-         gradeLevel: grade,
-         adviserId: adviser.id,
-       });
+   function teacherToRow(t) {
+     return { name: t.name, email: t.email, contact: t.contact || null, status: t.status, username: t.username || null, position: t.position || null };
+   }
+   function sectionToRow(s) {
+     return { name: s.name, grade_level: s.gradeLevel, adviser_id: s.adviserId ?? null };
+   }
+   function subjectToRow(s) {
+     return { code: s.code, name: s.name, units: s.units, grade_level: s.gradeLevel };
+   }
+   function studentToRow(s) {
+     return {
+       student_no: s.studentNo, first_name: s.firstName, middle_name: s.middleName || null,
+       last_name: s.lastName, name: s.name, birth_date: s.birthDate, grade_level: s.gradeLevel,
+       section_id: s.sectionId ?? null, status: s.status, username: s.username || null,
+       can_view_subjects: s.permissions ? s.permissions.studentsViewSubjects : true,
+       can_view_grading_card: s.permissions ? s.permissions.studentsViewGradingCard : true,
+       can_view_teachers_page: s.permissions ? s.permissions.studentsViewTeachersPage : true,
+     };
+   }
+   const ROW_MAPPERS = { teachers: teacherToRow, sections: sectionToRow, subjects: subjectToRow, students: studentToRow };
+
+   /* ---- initial load: pull every table into the same `data` shape the rest of the app expects ---- */
+   async function loadAllData() {
+     const [teachersRes, sectionsRes, subjectsRes, subjectTeachersRes, studentsRes, gradesRes, adminsRes, settingsRes, logRes] = await Promise.all([
+       supabaseClient.from("teachers").select("*").order("id"),
+       supabaseClient.from("sections").select("*").order("id"),
+       supabaseClient.from("subjects").select("*").order("id"),
+       supabaseClient.from("subject_teachers").select("*"),
+       supabaseClient.from("students").select("*").order("id"),
+       supabaseClient.from("grades").select("*"),
+       supabaseClient.from("admins").select("*").order("id"),
+       supabaseClient.from("settings").select("*").single(),
+       supabaseClient.from("activity_log").select("*").order("happened_at", { ascending: false }).limit(200),
+     ]);
+
+     for (const res of [teachersRes, sectionsRes, subjectsRes, subjectTeachersRes, studentsRes, gradesRes, adminsRes, settingsRes, logRes]) {
+       if (res.error) console.error("Supabase load error:", res.error);
      }
-   });
 
-   /* ---- subjects: full DepEd Junior High School core subject list, every grade ---- */
-   const JHS_CORE_SUBJECTS = [
-     { prefix: "FIL", subject: "Filipino" },
-     { prefix: "ENG", subject: "English" },
-     { prefix: "MTH", subject: "Mathematics" },
-     { prefix: "SCI", subject: "Science" },
-     { prefix: "AP", subject: "Araling Panlipunan" },
-     { prefix: "ESP", subject: "Edukasyon sa Pagpapakatao" },
-     { prefix: "MAPEH", subject: "MAPEH" },
-     { prefix: "TLE", subject: "Technology and Livelihood Education" },
-   ];
-   GRADE_LEVELS.forEach((grade, gi) => {
-     const gradeNum = 7 + gi;
-     JHS_CORE_SUBJECTS.forEach(def => {
-       data.subjects.push({
-         id: newId(),
-         code: `${def.prefix}-${gradeNum}01`,
-         name: `${def.subject} ${gradeNum}`,
-         units: 1,
-         gradeLevel: grade,
-         teacherIds: [],
-       });
+     data.teachers = (teachersRes.data || []).map(rowToTeacher);
+     data.sections = (sectionsRes.data || []).map(rowToSection);
+     data.subjects = (subjectsRes.data || []).map(rowToSubject);
+     (subjectTeachersRes.data || []).forEach(link => {
+       const subject = data.subjects.find(s => s.id === link.subject_id);
+       if (subject) subject.teacherIds.push(link.teacher_id);
      });
-   });
-   data.subjects.forEach((subject, i) => {
-     subject.teacherIds = [data.teachers[i % data.teachers.length].id];
-   });
+     data.students = (studentsRes.data || []).map(rowToStudent);
+     (gradesRes.data || []).forEach(g => {
+       const student = data.students.find(s => s.id === g.student_id);
+       if (student) student.grades[g.subject_id] = { q1: g.q1, q2: g.q2, q3: g.q3, q4: g.q4 };
+     });
+     data.admins = (adminsRes.data || []).map(rowToAdmin);
 
-   /* ---- 150 students, ~10 per section ---- */
-   let studentSeq = 0;
-   data.sections.forEach(section => {
-     for (let i = 0; i < STUDENTS_PER_SECTION; i++) {
-       const first = STUDENT_FIRST_NAMES[studentSeq % STUDENT_FIRST_NAMES.length];
-       const last = STUDENT_LAST_NAMES[(studentSeq * 7 + Math.floor(studentSeq / STUDENT_FIRST_NAMES.length)) % STUDENT_LAST_NAMES.length];
-       const middle = STUDENT_LAST_NAMES[(studentSeq * 11 + 5) % STUDENT_LAST_NAMES.length];
-       const name = buildStudentFullName(first, middle, last);
-       const baseYear = GRADE_BIRTH_YEAR_BASE[section.gradeLevel] - (studentSeq % 2);
-       const birthMonth = String(1 + (studentSeq * 7) % 12).padStart(2, "0");
-       const birthDay = String(1 + (studentSeq * 13) % 28).padStart(2, "0");
-       const birthDate = `${baseYear}-${birthMonth}-${birthDay}`;
-       const baseQ1 = 74 + (studentSeq % 21);
-       const baseQ2 = baseQ1 + ((studentSeq % 5) - 2);
-       data.students.push({
-         id: newId(),
-         studentNo: generateStudentNo(first, middle, last, birthDate),
-         firstName: first,
-         middleName: middle,
-         lastName: last,
-         name,
-         birthDate,
-         gradeLevel: section.gradeLevel,
-         sectionId: section.id,
-         status: (studentSeq % 13 === 0) ? "Inactive" : "Active",
-         username: usernameFor(name),
-         password: generatePassword(),
-         permissions: {
-           studentsViewSubjects: true,
-           studentsViewGradingCard: true,
-           studentsViewTeachersPage: true,
-         },
-         _baseQ1: baseQ1,
-         _baseQ2: baseQ2,
-       });
-       studentSeq++;
+     if (settingsRes.data) {
+       settings.schoolName = settingsRes.data.school_name;
+       settings.schoolYear = settingsRes.data.school_year;
+       settings.period = settingsRes.data.period;
+       settings.scale = settingsRes.data.scale;
+       settings.passing = settingsRes.data.passing;
      }
-   });
 
-   data.admins = [
-     { id: newId(), name: "Corazon Villareal", role: "Principal", username: "cvillareal", password: "Ht8@nQe1Zm", status: "Active" },
-     { id: newId(), name: "Bien Santos", role: "Administrator", username: "bsantos", password: "Lp4#wRc9Ty", status: "Active" },
-   ];
+     activityLog = (logRes.data || []).map(r => ({ timestamp: new Date(r.happened_at), what: r.what, category: r.category, action: r.action, name: r.name }));
+   }
 
-   // Seed each student's per-subject grades from their subjects' grade level.
-   // The school is currently on 2nd Grading, so only Q1 and Q2 are filled in.
-   function subjectsForGradeLevel(level) {
-     return data.subjects.filter(s => s.gradeLevel === level);
+   /* ---- write helpers used by the add/edit modal, delete confirm, etc. ---- */
+   async function syncSubjectTeachers(subjectId, teacherIds) {
+     await supabaseClient.from("subject_teachers").delete().eq("subject_id", subjectId);
+     if (teacherIds.length) {
+       const { error } = await supabaseClient.from("subject_teachers").insert(teacherIds.map(teacherId => ({ subject_id: subjectId, teacher_id: teacherId })));
+       if (error) console.error(error);
+     }
    }
-   function clampGrade(n) {
-     return Math.max(60, Math.min(100, Math.round(n)));
+
+   async function persistEntitySave(entityKey, mode, draft) {
+     const table = TABLE_FOR_ENTITY[entityKey];
+     const mapper = ROW_MAPPERS[entityKey];
+     try {
+       if (mode === "add") {
+         const tempId = draft.id;
+         const { data: inserted, error } = await supabaseClient.from(table).insert(mapper(draft)).select().single();
+         if (error) throw error;
+         const record = data[entityKey].find(r => r.id === tempId);
+         if (record) record.id = inserted.id;
+         if (entityKey === "subjects") await syncSubjectTeachers(inserted.id, draft.teacherIds || []);
+         renderAll();
+       } else {
+         const { error } = await supabaseClient.from(table).update(mapper(draft)).eq("id", draft.id);
+         if (error) throw error;
+         if (entityKey === "subjects") await syncSubjectTeachers(draft.id, draft.teacherIds || []);
+       }
+     } catch (err) {
+       console.error(err);
+       showToast("Couldn't save to the database — check your connection.", "error");
+     }
    }
-   
-   const subjectOffsets = [0, -3, 2]; // slight variation across a student's subjects
-   
-   data.students.forEach(student => {
-     const subs = subjectsForGradeLevel(student.gradeLevel);
-     student.grades = {};
-     subs.forEach((sub, i) => {
-       const offset = subjectOffsets[i % subjectOffsets.length];
-       student.grades[sub.id] = {
-         q1: clampGrade(student._baseQ1 + offset),
-         q2: clampGrade(student._baseQ2 + offset),
-         q3: null,
-         q4: null,
-       };
+
+   function persistEntityDelete(entityKey, id) {
+     const table = TABLE_FOR_ENTITY[entityKey];
+     supabaseClient.from(table).delete().eq("id", id).then(({ error }) => {
+       if (error) { console.error(error); showToast("Couldn't delete from the database — check your connection.", "error"); }
      });
-     delete student._baseQ1;
-     delete student._baseQ2;
-   });
-   
+   }
+
    // Philippine school years run roughly June–March, so from June onward the
    // school year is "this year–next year"; before June it's "last year–this year".
    function computeCurrentSchoolYear() {
@@ -221,13 +175,14 @@
      passing: 75,
    };
    
-   let activityLog = [
-     { timestamp: new Date(), what: "Sample data loaded for this session.", category: "Admin", action: "Add", name: "Sample data" },
-   ];
-   
+   let activityLog = [];
+
    function logActivity(text, category, action, name) {
      activityLog.unshift({ timestamp: new Date(), what: text, category, action, name });
      renderLogs();
+     supabaseClient.from("activity_log").insert({ what: text, category, action, name }).then(({ error }) => {
+       if (error) console.error(error);
+     });
    }
    
    /* ============================================
@@ -1140,6 +1095,7 @@
        logActivity(`Updated ${config.label} record: ${recordName}.`, logCategory, "Edit", recordName);
        showToast(`${label} updated.`, "success");
      }
+     persistEntitySave(entityKey, mode, draft);
    
      renderAll();
      closeModal();
@@ -1226,6 +1182,7 @@
      const config = entityConfig[entityKey];
      data[entityKey] = data[entityKey].filter(r => r.id !== id);
      logActivity(`Deleted a ${config.label} record: ${name}.`, entityLogCategory[entityKey] || "Admin", "Delete", name);
+     persistEntityDelete(entityKey, id);
      renderAll();
      confirmBackdrop.hidden = true;
      pendingDelete = null;
@@ -1279,6 +1236,8 @@
      const subject = data.subjects.find(s => s.id === Number(subId));
      subject.teacherIds = (subject.teacherIds || []).filter(id => id !== currentLoadTeacherId);
      logActivity(`Removed ${subject.code} from ${teacherName(currentLoadTeacherId)}'s subject load.`, "Teacher", "Edit", teacherName(currentLoadTeacherId));
+     supabaseClient.from("subject_teachers").delete().eq("subject_id", subject.id).eq("teacher_id", currentLoadTeacherId)
+       .then(({ error }) => { if (error) { console.error(error); showToast("Couldn't update the database — check your connection.", "error"); } });
      renderLoadModal();
      renderAll();
    });
@@ -1290,6 +1249,8 @@
      if (!subject.teacherIds) subject.teacherIds = [];
      if (!subject.teacherIds.includes(currentLoadTeacherId)) subject.teacherIds.push(currentLoadTeacherId);
      logActivity(`Added ${subject.code} to ${teacherName(currentLoadTeacherId)}'s subject load.`, "Teacher", "Edit", teacherName(currentLoadTeacherId));
+     supabaseClient.from("subject_teachers").insert({ subject_id: subject.id, teacher_id: currentLoadTeacherId })
+       .then(({ error }) => { if (error) { console.error(error); showToast("Couldn't update the database — check your connection.", "error"); } });
      renderLoadModal();
      renderAll();
    });
@@ -1416,6 +1377,21 @@
    
      logActivity(`Updated grades for ${student.name} (${settings.period}).`, "Student", "Edit", student.name);
      showToast("Grades saved.", "success");
+   
+     const gradeRows = Object.keys(student.grades).map(subjectId => ({
+       student_id: student.id,
+       subject_id: Number(subjectId),
+       q1: student.grades[subjectId].q1 ?? null,
+       q2: student.grades[subjectId].q2 ?? null,
+       q3: student.grades[subjectId].q3 ?? null,
+       q4: student.grades[subjectId].q4 ?? null,
+     }));
+     if (gradeRows.length) {
+       supabaseClient.from("grades").upsert(gradeRows, { onConflict: "student_id,subject_id" }).then(({ error }) => {
+         if (error) { console.error(error); showToast("Couldn't save grades to the database.", "error"); }
+       });
+     }
+   
      openGradesModal(currentGradesStudentId); // refresh with recomputed values
      setTimeout(() => { saveBtn.disabled = false; }, 400);
    });
@@ -1579,6 +1555,9 @@
          const teacher = data.teachers.find(t => t.id === Number(e.target.dataset.position));
          teacher.position = e.target.value;
          logActivity(`${e.target.value ? `Set position for ${teacher.name} to ${e.target.value}.` : `Cleared position for ${teacher.name}.`}`, "Admin", "Edit", teacher.name);
+         supabaseClient.from("teachers").update({ position: teacher.position || null }).eq("id", teacher.id).then(({ error }) => {
+           if (error) { console.error(error); showToast("Couldn't save position to the database.", "error"); }
+         });
        });
      });
    }
@@ -1607,6 +1586,11 @@
      { key: "studentsViewGradingCard", label: "View their own grading card" },
      { key: "studentsViewTeachersPage", label: "View the Teachers page" },
    ];
+   const STUDENT_PERM_COLUMNS = {
+     studentsViewSubjects: "can_view_subjects",
+     studentsViewGradingCard: "can_view_grading_card",
+     studentsViewTeachersPage: "can_view_teachers_page",
+   };
    
    function openStudentCredentialsModal(id) {
      const student = data.students.find(s => s.id === id);
@@ -1631,6 +1615,10 @@
          student.permissions[key] = e.target.checked;
          const label = STUDENT_PERMS.find(p => p.key === key).label;
          logActivity(`${e.target.checked ? "Granted" : "Removed"} access for ${student.name}: ${label}.`, "Admin", "Edit", student.name);
+         const column = STUDENT_PERM_COLUMNS[key];
+         supabaseClient.from("students").update({ [column]: e.target.checked }).eq("id", student.id).then(({ error }) => {
+           if (error) { console.error(error); showToast("Couldn't save access to the database.", "error"); }
+         });
        });
      });
    
@@ -1725,6 +1713,14 @@
      flash.hidden = false;
      logActivity("Updated admin settings.", "Admin", "Edit", settings.schoolName || "School settings");
      showToast("Settings saved.", "success");
+     supabaseClient.from("settings").update({
+       school_year: settings.schoolYear,
+       period: settings.period,
+       scale: settings.scale,
+       passing: settings.passing,
+     }).eq("id", true).then(({ error }) => {
+       if (error) { console.error(error); showToast("Couldn't save settings to the database.", "error"); }
+     });
      setTimeout(() => {
        flash.hidden = true;
        saveSettingsBtn.disabled = false; // reactivate for the next save instance
@@ -1732,7 +1728,7 @@
    });
    
    document.getElementById("resetDataBtn").addEventListener("click", () => {
-     if (confirm("Reset all lists back to sample data? This can't be undone.")) {
+     if (confirm("Reload all lists from the database? Any unsaved changes on screen will be discarded.")) {
        location.reload();
      }
    });
@@ -1740,5 +1736,9 @@
    /* ============================================
       INIT
       ============================================ */
-   loadSettingsForm();
-   renderAll();
+   (async function init() {
+     await loadAllData();
+     loadSettingsForm();
+     renderAll();
+     renderLogs();
+   })();
