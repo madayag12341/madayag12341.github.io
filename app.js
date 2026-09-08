@@ -221,13 +221,6 @@
      passing: 75,
    };
    
-   // Role permissions, managed from the admin/principal accounts modal.
-   let permissions = {
-     studentsViewSubjects: true,
-     studentsViewGradingCard: true,
-     studentsViewTeachersPage: true,
-   };
-   
    let activityLog = [
      { timestamp: new Date(), what: "Sample data loaded for this session.", category: "Admin", action: "Add", name: "Sample data" },
    ];
@@ -1591,27 +1584,6 @@
    }
    
    function renderStudentAccountsModal() {
-     const list = document.getElementById("studentPermissionsList");
-     const perms = [
-       { key: "studentsViewSubjects", label: "View the subjects assigned to them" },
-       { key: "studentsViewGradingCard", label: "View their own grading card" },
-       { key: "studentsViewTeachersPage", label: "View the Teachers page" },
-     ];
-     list.innerHTML = perms.map(p => `
-       <label class="checkbox-option">
-         <input type="checkbox" data-student-perm="${p.key}" ${permissions[p.key] ? "checked" : ""}>
-         <span>${p.label}</span>
-       </label>`).join("");
-   
-     list.querySelectorAll("[data-student-perm]").forEach(cb => {
-       cb.addEventListener("change", (e) => {
-         const key = e.target.dataset.studentPerm;
-         permissions[key] = e.target.checked;
-         const label = perms.find(p => p.key === key).label;
-         logActivity(`${e.target.checked ? "Allowed" : "Removed"} student access: ${label}.`, "Admin", "Edit", label);
-       });
-     });
-   
      const tbody = document.querySelector("#studentAccountsTable tbody");
      tbody.innerHTML = data.students.length ? data.students.map(s => `
        <tr>
