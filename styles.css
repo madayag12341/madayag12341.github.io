@@ -228,12 +228,80 @@
   .account-pill .btn-ghost {
     padding: 4px 10px;
     font-size: 0.72rem;
+    color: #E4E7EF;
+    border-color: rgba(228, 231, 239, 0.4);
+  }
+
+  .account-pill .btn-ghost:hover {
+    color: var(--gold);
+    border-color: var(--gold);
+    background: rgba(32, 184, 166, 0.12);
   }
   
   .balance-figure {
     font-size: 22px;
     font-weight: 600;
     color: var(--ink);
+  }
+
+  .balance-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+
+  .payment-method-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+  }
+
+  .payment-method-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    text-align: left;
+    padding: 14px 16px;
+    border: 1px solid var(--paper-line);
+    border-radius: var(--radius);
+    background: #fff;
+    cursor: pointer;
+    font-family: var(--font-body);
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  }
+
+  .payment-method-card:hover {
+    border-color: var(--gold-dark);
+  }
+
+  .payment-method-card.is-selected {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px rgba(32, 184, 166, 0.18);
+    background: rgba(32, 184, 166, 0.05);
+  }
+
+  .payment-method-icon {
+    font-size: 1.3rem;
+    line-height: 1;
+  }
+
+  .payment-method-name {
+    font-weight: 600;
+    font-size: 0.92rem;
+    color: var(--ink);
+  }
+
+  .payment-method-desc {
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+  }
+
+  .payment-preview-note {
+    display: block;
+    margin-top: 4px;
   }
   
   .main {
@@ -480,6 +548,12 @@
     border-top: 1px solid var(--paper-line);
   }
   
+  .load-advisory-note {
+    color: var(--ink-soft);
+    font-size: 0.82rem;
+    margin: 10px 0 0;
+  }
+  
   .load-add-row select {
     flex: 1;
     padding: 9px 11px;
@@ -580,6 +654,13 @@
     font-size: 0.9rem;
   }
   .btn-pen:hover { background: var(--pen-red-dark); }
+  .btn-pen:disabled {
+    background: #9a9a9a;
+    color: #eee;
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.85;
+  }
   
   .btn-ghost {
     background: none;
@@ -711,6 +792,7 @@
   
   .modal-card--small { max-width: 400px; }
   .modal-card--wide { max-width: 700px; }
+  .modal-card--extra-wide { max-width: 920px; }
   
   .grades-period-note {
     color: var(--ink-soft);
@@ -718,8 +800,93 @@
     margin: -8px 0 16px;
   }
   
+  .grades-balance-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 16px;
+  }
+
+  .grades-balance-row label {
+    font-weight: 600;
+    color: var(--ink);
+    font-size: 0.9rem;
+  }
+
+  .balance-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid var(--paper-line);
+    border-radius: var(--radius);
+    background: #fff;
+  }
+
+  .balance-currency {
+    color: var(--ink-soft);
+    font-weight: 600;
+  }
+
+  .balance-input {
+    width: 110px;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--ink);
+    text-align: right;
+    font-size: 0.95rem;
+  }
+
+  .balance-input:disabled {
+    color: var(--ink-soft);
+    cursor: not-allowed;
+  }
+
   .grades-table-wrap {
-    overflow-x: auto;
+    overflow-x: auto; /* still a safety net on very narrow viewports, but the fixed layout below means it shouldn't kick in */
+  }
+
+  .grades-table {
+    table-layout: fixed;
+  }
+
+  .grades-table col.col-subject { width: 30%; }
+  .grades-table col.col-quarter { width: 15%; }
+  .grades-table col.col-final { width: 10%; }
+
+  .grades-table thead th,
+  .grades-table tbody td {
+    padding: 12px 10px;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .grades-table .grade-input {
+    width: 100%;
+    max-width: 68px;
+    box-sizing: border-box;
+  }
+
+  @media (max-width: 640px) {
+    .grades-table col.col-subject { width: 26%; }
+    .grades-table col.col-quarter { width: 16%; }
+    .grades-table col.col-final { width: 10%; }
+    .grades-table thead th,
+    .grades-table tbody td { padding: 8px 6px; font-size: 0.72rem; }
+    .grades-table .grade-input { padding: 5px 4px; font-size: 0.82rem; }
+  }
+
+  @media (max-width: 420px) {
+    .grades-table thead th,
+    .grades-table tbody td { padding: 6px 4px; font-size: 0.64rem; }
+    .grades-table .grade-input { padding: 4px 2px; font-size: 0.76rem; }
+  }
+
+  .empty-note-cell {
+    text-align: center;
+    color: var(--ink-soft);
+    padding: 16px 8px;
   }
   
   .grade-input {
@@ -809,6 +976,21 @@
   
   .checkbox-option.is-disabled input[type="checkbox"] {
     cursor: default;
+  }
+
+  .checkbox-list--inline {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    max-height: none;
+    padding: 4px 0;
+    border: none;
+    background: transparent;
+  }
+
+  .checkbox-list--inline .checkbox-option {
+    font-size: 0.82rem;
+    white-space: nowrap;
   }
   
   /* ============================================

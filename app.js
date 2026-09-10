@@ -31,6 +31,32 @@ let nextId = 1;
 const newId = () => nextId++; // temporary client-side id, swapped for the real DB id after insert
 
 const GRADE_LEVELS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10"];
+
+/* ---- teacher account permissions: what a teacher login is allowed to do ---- */
+const TEACHER_PERMS = [
+  { key: "teachersEditGrades", label: "Edit grades" },
+  { key: "teachersPortalAccess", label: "My portal access" },
+  { key: "teachersEditStudents", label: "Edit students" },
+  { key: "teachersEditSubjects", label: "Edit subject" },
+  { key: "teachersEditTeachers", label: "Edit teachers" },
+];
+const TEACHER_PERM_COLUMNS = {
+  teachersEditGrades: "can_edit_grades",
+  teachersPortalAccess: "can_access_portal",
+  teachersEditStudents: "can_edit_students",
+  teachersEditSubjects: "can_edit_subjects",
+  teachersEditTeachers: "can_edit_teachers",
+};
+const DEFAULT_TEACHER_PERMISSIONS = {
+  teachersEditGrades: true,
+  teachersPortalAccess: true,
+  teachersEditStudents: true,
+  teachersEditSubjects: true,
+  teachersEditTeachers: false,
+};
+
+/* ---- what shows up in the "Position" dropdown on the Teacher accounts screen ---- */
+const TEACHER_POSITIONS = ["Teacher 1", "Dean", "Principal", "Vice Principal", "Guidance Counselor", "Disciplinary Officer"];
 const SECTION_NAME_POOL = [
   "Narra", "Molave", "Acacia", "Mahogany", "Ipil", "Yakal", "Kamagong", "Banaba",
   "Kalachuchi", "Sampaguita", "Ilang-Ilang", "Camia", "Waling-Waling", "Champaca",
@@ -76,7 +102,22 @@ async function requireAuth() {
 
 /* ---- row (snake_case, DB) <-> record (camelCase, app) mapping ---- */
 function rowToTeacher(r) {
-  return { id: r.id, name: r.name, email: r.email, contact: r.contact, status: r.status, username: r.username, position: r.position || "" };
+  return {
+    id: r.id, name: r.name, email: r.email, contact: r.contact, status: r.status, username: r.username, position: r.position || "",
+    // Any column not yet present in the DB (older rows, migration not run yet) reads as
+    // undefined/null from Supabase — treat that as "still allowed" rather than locking
+    // everyone out, so only an explicit false takes access away.
+    permissions: {
+      teachersEditGrades: r.can_edit_grades !== false,
+      teachersPortalAccess: r.can_access_portal !== false,
+      teachersEditStudents: r.can_edit_students !== false,
+      teachersEditSubjects: r.can_edit_subjects !== false,
+      // Unlike the perms above, a missing/null column here means "not granted" —
+      // this unlocks the Teachers page itself, so it should never silently
+      // default to on for rows created before this column existed.
+      teachersEditTeachers: r.can_edit_teachers === true,
+    },
+  };
 }
 function rowToSection(r) {
   return { id: r.id, name: r.name, gradeLevel: r.grade_level, adviserId: r.adviser_id };
@@ -92,7 +133,6 @@ function rowToStudent(r) {
     permissions: {
       studentsViewSubjects: r.can_view_subjects,
       studentsViewGradingCard: r.can_view_grading_card,
-      studentsViewTeachersPage: r.can_view_teachers_page,
     },
     grades: {},
   };
@@ -102,7 +142,15 @@ function rowToAdmin(r) {
 }
 
 function teacherToRow(t) {
-  return { name: t.name, email: t.email, contact: t.contact || null, status: t.status, username: t.username || null, position: t.position || null };
+  const perms = t.permissions || DEFAULT_TEACHER_PERMISSIONS;
+  return {
+    name: t.name, email: t.email, contact: t.contact || null, status: t.status, username: t.username || null, position: t.position || null,
+    can_edit_grades: perms.teachersEditGrades !== false,
+    can_access_portal: perms.teachersPortalAccess !== false,
+    can_edit_students: perms.teachersEditStudents !== false,
+    can_edit_subjects: perms.teachersEditSubjects !== false,
+    can_edit_teachers: perms.teachersEditTeachers === true,
+  };
 }
 function sectionToRow(s) {
   return { name: s.name, grade_level: s.gradeLevel, adviser_id: s.adviserId ?? null };
@@ -117,7 +165,6 @@ function studentToRow(s) {
     section_id: s.sectionId ?? null, status: s.status, username: s.username || null,
     can_view_subjects: s.permissions ? s.permissions.studentsViewSubjects : true,
     can_view_grading_card: s.permissions ? s.permissions.studentsViewGradingCard : true,
-    can_view_teachers_page: s.permissions ? s.permissions.studentsViewTeachersPage : true,
   };
 }
 const ROW_MAPPERS = { teachers: teacherToRow, sections: sectionToRow, subjects: subjectToRow, students: studentToRow };
@@ -282,7 +329,9 @@ const entityConfig = {
   teachers: {
     label: "teacher",
     fields: [
-      { key: "name", label: "Full name", type: "text", required: true },
+      { key: "firstName", label: "First name", type: "text", required: true },
+      { key: "middleName", label: "Middle name", type: "text" },
+      { key: "lastName", label: "Last name", type: "text", required: true },
       { key: "email", label: "Email", type: "email", required: true },
       { key: "contact", label: "Contact no.", type: "text" },
       { key: "status", label: "Status", type: "select", options: ["Active", "Inactive"] },
@@ -380,12 +429,26 @@ function sectionOptionsForGrade(gradeLevel) {
   const pool = gradeLevel ? data.sections.filter(s => s.gradeLevel === gradeLevel) : data.sections;
   return [{ value: "", label: "— none —" }, ...pool.map(s => ({ value: s.id, label: s.name }))];
 }
-function buildStudentFullName(firstName, middleName, lastName) {
+function buildFullName(firstName, middleName, lastName) {
   const first = (firstName || "").trim();
   const middle = (middleName || "").trim();
   const last = (lastName || "").trim();
   const middlePart = middle ? ` ${middle.charAt(0).toUpperCase()}.` : "";
   return `${first}${middlePart} ${last}`.replace(/\s+/g, " ").trim();
+}
+// Best-effort reverse of buildFullName, used only to prefill the First/Middle/
+// Last fields when editing a record that only has a combined name on file
+// (e.g. a teacher saved before this modal had separate name fields).
+function splitFullName(fullName) {
+  const parts = (fullName || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: "", middleName: "", lastName: "" };
+  if (parts.length === 1) return { firstName: parts[0], middleName: "", lastName: "" };
+  if (parts.length === 2) return { firstName: parts[0], middleName: "", lastName: parts[1] };
+  return {
+    firstName: parts[0],
+    middleName: parts.slice(1, -1).join(" ").replace(/\.$/, ""),
+    lastName: parts[parts.length - 1],
+  };
 }
 function studentInitials(firstName, middleName, lastName) {
   const f = (firstName || "").trim().charAt(0);
@@ -484,6 +547,19 @@ function statusTag(status) {
 function advisoryCell(teacherId) {
   const section = data.sections.find(s => s.adviserId == teacherId);
   return section ? section.name : `<span class="advisory-none">None assigned</span>`;
+}
+// The grade level a teacher is scoped to for subject-load purposes — taken
+// from the section they advise. null if they aren't advising any section yet.
+function teacherAdvisoryGradeLevel(teacherId) {
+  const section = data.sections.find(s => s.adviserId == teacherId);
+  return section ? section.gradeLevel : null;
+}
+// The full section object a teacher advises (id, name, gradeLevel), used to
+// lock the grade/section fields when that teacher adds/edits a student —
+// they can only ever place a student into their own advisory section.
+// null if they aren't advising any section yet.
+function advisorySectionForTeacher(teacherId) {
+  return data.sections.find(s => s.adviserId == teacherId) || null;
 }
 function subjectLoadCell(teacherId) {
   const count = subjectLoadCount(teacherId);
@@ -692,10 +768,9 @@ const ROW_ICONS = {
     <path d="M14 11v6"></path>
   </svg>`,
   grades: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path>
-    <path d="M14 2v6h6"></path>
-    <path d="M9 13h6"></path>
-    <path d="M9 17h6"></path>
+    <path d="M22 10 12 5 2 10l10 5 10-5Z"></path>
+    <path d="M6 12v5c0 1.5 2.5 3 6 3s6-1.5 6-3v-5"></path>
+    <path d="M22 10v6"></path>
   </svg>`,
 };
 
@@ -704,23 +779,95 @@ function isSectionAdviser(sectionId) {
   return !!section && !!currentUser && section.adviserId === currentUser.teacherId;
 }
 
+// A Principal or Vice Principal isn't necessarily a section adviser, but still
+// needs full, unrestricted grades access across every student and every
+// quarter — the section-adviser scoping and the quarter lock both bypass for
+// them. This only affects grades; editing/deleting a student's record stays
+// governed by isSectionAdviser()/admin as before.
+function hasFullGradesAccess() {
+  if (!currentUser || currentUser.role !== "teacher") return false;
+  const teacher = data.teachers.find(t => t.id === currentUser.teacherId);
+  return !!teacher && (teacher.position === "Principal" || teacher.position === "Vice Principal");
+}
+
+// True for the Principal, Vice Principal, and Dean positions — the set of
+// positions singled out for extra rights (deleting teacher accounts) and
+// extra restrictions (grades are view-only for them, see below).
+function isSeniorTeacherPosition(teacher) {
+  return !!teacher && ["Principal", "Vice Principal", "Dean"].includes(teacher.position);
+}
+function currentTeacherRecord() {
+  if (!currentUser || currentUser.role !== "teacher") return null;
+  return data.teachers.find(t => t.id === currentUser.teacherId) || null;
+}
+
+// Deleting a teacher account is reserved for admins plus these three senior
+// positions — the "Edit teachers" checkbox alone (which unlocks the page and
+// editing) is not enough to also delete an account.
+function canDeleteTeachers() {
+  return isSeniorTeacherPosition(currentTeacherRecord());
+}
+
+// True for admins by default (nothing to restrict here) and for students (not applicable).
+// Only actually checks the teacher's own checkboxes when the signed-in account is a teacher.
+function teacherCan(key) {
+  if (!currentUser || currentUser.role !== "teacher") return true;
+  const teacher = data.teachers.find(t => t.id === currentUser.teacherId);
+  const perms = teacher && teacher.permissions ? teacher.permissions : DEFAULT_TEACHER_PERMISSIONS;
+  return !!perms[key];
+}
+
 function buildRowActions(entityKey, row) {
   const role = currentUser ? currentUser.role : "admin";
   const parts = [];
 
   if (entityKey === "students") {
-    parts.push(`<button class="icon-btn icon-btn--grades" data-grades="${row.id}" title="Grading card sheet" aria-label="Grading card sheet">${ROW_ICONS.grades}</button>`);
-    const canEdit = role === "admin" || (role === "teacher" && isSectionAdviser(row.sectionId));
+    // Teachers only get the grading-sheet icon for students in a section they advise,
+    // except a Principal/Vice Principal, who gets it for every student —
+    // getFilteredStudents() already keeps other sections off the table for a regular
+    // teacher, but this is a second gate in case a row ever gets rendered from elsewhere.
+    const canOpenGrades = role !== "teacher" || hasFullGradesAccess() || isSectionAdviser(row.sectionId);
+    if (canOpenGrades) {
+      parts.push(`<button class="icon-btn icon-btn--grades" data-grades="${row.id}" title="Grading card sheet" aria-label="Grading card sheet">${ROW_ICONS.grades}</button>`);
+    }
+    const canEdit = role === "admin" || (role === "teacher" && teacherCan("teachersEditStudents") && isSectionAdviser(row.sectionId));
     if (canEdit) {
       parts.push(`<button class="icon-btn" data-edit="${entityKey}:${row.id}" title="Edit" aria-label="Edit">${ROW_ICONS.edit}</button>`);
     }
-    if (role === "admin") {
+    // A teacher who can edit a student (their own advisee) can also delete
+    // that record — not admin-only anymore.
+    if (canEdit) {
       parts.push(`<button class="icon-btn link-delete" data-delete="${entityKey}:${row.id}" title="Delete" aria-label="Delete">${ROW_ICONS.delete}</button>`);
     }
     return parts.length ? parts.join("") : null;
   }
 
-  // Teachers / subjects / sections: only admin may edit or delete.
+  if (entityKey === "subjects") {
+    if (role === "admin") {
+      parts.push(`<button class="icon-btn" data-edit="${entityKey}:${row.id}" title="Edit" aria-label="Edit">${ROW_ICONS.edit}</button>`);
+      parts.push(`<button class="icon-btn link-delete" data-delete="${entityKey}:${row.id}" title="Delete" aria-label="Delete">${ROW_ICONS.delete}</button>`);
+      return parts.join("");
+    }
+    // Subjects are admin-only now — teachers can view the list but never add,
+    // edit, or delete a subject, regardless of their "Edit subject" checkbox.
+    return null;
+  }
+
+  if (entityKey === "teachers") {
+    const canEdit = role === "admin" || (role === "teacher" && teacherCan("teachersEditTeachers"));
+    if (canEdit) {
+      parts.push(`<button class="icon-btn" data-edit="${entityKey}:${row.id}" title="Edit" aria-label="Edit">${ROW_ICONS.edit}</button>`);
+    }
+    // Deleting a teacher account is reserved for admins and for the
+    // Principal/Vice Principal/Dean positions — the "Edit teachers" checkbox
+    // by itself only grants page access and editing, not deletion.
+    if (role === "admin" || canDeleteTeachers()) {
+      parts.push(`<button class="icon-btn link-delete" data-delete="${entityKey}:${row.id}" title="Delete" aria-label="Delete">${ROW_ICONS.delete}</button>`);
+    }
+    return parts.length ? parts.join("") : null;
+  }
+
+  // Sections: only admin may edit or delete.
   if (role !== "admin") return null;
   parts.push(`<button class="icon-btn" data-edit="${entityKey}:${row.id}" title="Edit" aria-label="Edit">${ROW_ICONS.edit}</button>`);
   parts.push(`<button class="icon-btn link-delete" data-delete="${entityKey}:${row.id}" title="Delete" aria-label="Delete">${ROW_ICONS.delete}</button>`);
@@ -734,7 +881,14 @@ let studentFilter = { field: "name", term: "", gradeLevel: "all", sectionId: "al
 
 function getFilteredStudents() {
   const term = studentFilter.term.trim().toLowerCase();
-  return data.students.filter(s => {
+  const role = currentUser ? currentUser.role : "admin";
+  // Teachers only ever see students in the section(s) they're the adviser of,
+  // except a Principal/Vice Principal, who — like an admin — sees everyone.
+  // (Students never reach this table — they use the portal.)
+  const scoped = role === "teacher" && !hasFullGradesAccess()
+    ? data.students.filter(s => isSectionAdviser(s.sectionId))
+    : data.students;
+  return scoped.filter(s => {
     const matchesTerm = !term || (studentFilter.field === "studentNo" ? s.studentNo : s.name).toLowerCase().includes(term);
     const matchesGrade = studentFilter.gradeLevel === "all" || s.gradeLevel === studentFilter.gradeLevel;
     const matchesSection = studentFilter.sectionId === "all" || String(s.sectionId) === String(studentFilter.sectionId);
@@ -785,12 +939,31 @@ function renderLogs() {
    NAVIGATION
    ============================================ */
 function activateNavPage(pageName) {
+  // Hard stop, not just a hidden button: a student session can never land on
+  // any page but the portal, no matter what triggers navigation.
+  if (currentUser && currentUser.role === "student" && pageName !== "portal") {
+    pageName = "portal";
+  }
+  // Same idea for teachers: Admin settings is always admin-only. The Teachers
+  // page is too, unless this teacher's "Edit teachers" checkbox is on — their
+  // nav buttons are already hidden/shown to match, but that alone doesn't stop
+  // someone from calling activateNavPage("teachers") directly (e.g. devtools),
+  // so this is the real gate.
+  if (currentUser && currentUser.role === "teacher" && pageName === "settings") {
+    pageName = "home";
+  }
+  if (currentUser && currentUser.role === "teacher" && pageName === "teachers" && !teacherCan("teachersEditTeachers")) {
+    pageName = "home";
+  }
   document.querySelectorAll(".nav-item").forEach(b => b.classList.remove("is-active"));
   document.querySelectorAll(".page").forEach(p => p.classList.remove("is-active"));
   const navBtn = document.querySelector(`.nav-item[data-page="${pageName}"]`);
   const page = document.getElementById(`page-${pageName}`);
   if (navBtn) navBtn.classList.add("is-active");
   if (page) page.classList.add("is-active");
+  // Settings has no modal to reopen, so landing on the page itself is the
+  // equivalent "reopen" event that unlocks its Save button.
+  if (pageName === "settings") loadSettingsForm();
 }
 
 document.querySelectorAll(".nav-item").forEach(btn => {
@@ -802,11 +975,20 @@ document.getElementById("logoutBtn").addEventListener("click", async () => {
   window.location.href = "index.html";
 });
 
+// The Home page greets whoever is logged in by their title, not a fixed
+// "Registrar" — a teacher account holding the Principal position (or Dean,
+// Vice Principal, etc.) sees a greeting for that position instead.
+function setHomeGreeting(title) {
+  const greeting = document.getElementById("homeGreeting");
+  if (greeting) greeting.textContent = `Good day, ${title}.`;
+}
+
 /* ---- lock the UI down to what this role is allowed to see/do ---- */
 function applyRoleRestrictions() {
   const accountLabel = document.getElementById("accountLabel");
   accountLabel.textContent = `${currentUser.username} · ${currentUser.role}`;
 
+  const homeNav = document.querySelector('.nav-item[data-page="home"]');
   const teachersNav = document.querySelector('.nav-item[data-page="teachers"]');
   const settingsNav = document.querySelector('.nav-item[data-page="settings"]');
   const studentsNav = document.querySelector('.nav-item[data-page="students"]');
@@ -815,18 +997,46 @@ function applyRoleRestrictions() {
   const portalNav = document.getElementById("navPortal");
 
   if (currentUser.role === "admin") {
+    setHomeGreeting("Registrar");
     return; // full access, nothing to hide
   }
 
   if (currentUser.role === "teacher") {
-    teachersNav.hidden = true;
     settingsNav.hidden = true;
     document.querySelectorAll("[data-add]").forEach(btn => { btn.hidden = true; });
+
+    const teacher = data.teachers.find(t => t.id === currentUser.teacherId);
+    const perms = teacher && teacher.permissions ? teacher.permissions : DEFAULT_TEACHER_PERMISSIONS;
+    setHomeGreeting((teacher && teacher.position) || "Teacher");
+
+    // "Edit teachers" governs whether this teacher can even see the Teachers
+    // page, and — like "Edit students" below — also whether they can add a
+    // new teacher account, not just edit existing ones.
+    teachersNav.hidden = !perms.teachersEditTeachers;
+    const addTeacherBtn = document.querySelector('[data-add="teachers"]');
+    if (addTeacherBtn) addTeacherBtn.hidden = !perms.teachersEditTeachers;
+
+    // "Edit students" also governs whether this teacher can add a new one —
+    // but only if they're actually advising a section, since a new student a
+    // teacher adds always goes into their own grade/section. Subjects are
+    // admin-only now, so the Add Subject button stays hidden (its default
+    // state, set above) no matter what the "Edit subject" checkbox says.
+    const addStudentBtn = document.querySelector('[data-add="students"]');
+    if (addStudentBtn) addStudentBtn.hidden = !perms.teachersEditStudents || !advisorySectionForTeacher(currentUser.teacherId);
+
+    // "My portal access" governs whether the My Portal nav item shows at all.
+    if (portalNav) {
+      portalNav.hidden = !perms.teachersPortalAccess;
+      if (perms.teachersPortalAccess) renderTeacherPortal();
+    }
     return;
   }
 
   if (currentUser.role === "student") {
-    teachersNav.hidden = !data.teachers.length;
+    // Rule: a student login can only ever reach "My Portal" — every other nav
+    // item, including the Dashboard/Home screen, is hidden with no exceptions.
+    homeNav.hidden = true;
+    teachersNav.hidden = true;
     settingsNav.hidden = true;
     studentsNav.hidden = true;
     subjectsNav.hidden = true;
@@ -838,19 +1048,61 @@ function applyRoleRestrictions() {
   }
 }
 
+function renderTeacherPortal() {
+  const teacher = data.teachers.find(t => t.id === currentUser.teacherId);
+  if (!teacher) return;
+
+  // Teachers have no balance or grading card of their own — only students do.
+  document.getElementById("portalBalancePanel").hidden = true;
+  document.getElementById("portalGradesPanel").hidden = true;
+  document.getElementById("portalSubjectsPanel").hidden = false;
+
+  document.getElementById("portalStudentName").textContent = teacher.name;
+  document.getElementById("portalStudentMeta").textContent = `${teacher.username || "—"} · ${teacher.position || "Teacher"}`;
+  document.getElementById("portalSubjectsHeading").textContent = "My subject load";
+
+  const subjectsTbody = document.querySelector("#portalSubjectsTable tbody");
+  const subjectsEmpty = document.getElementById("portalSubjectsEmpty");
+  const taught = data.subjects.filter(s => s.teacherIds.includes(teacher.id));
+  if (taught.length) {
+    subjectsEmpty.hidden = true;
+    subjectsTbody.innerHTML = taught.map(s => `<tr><td>${s.code}</td><td>${s.name}</td><td>${s.units}</td></tr>`).join("");
+  } else {
+    subjectsEmpty.textContent = "No subjects assigned to you yet.";
+    subjectsEmpty.hidden = false;
+    subjectsTbody.innerHTML = "";
+  }
+}
+
 function renderStudentPortal() {
   const student = data.students.find(s => s.id === currentUser.studentId);
   if (!student) return;
 
+  // Undo any teacher-portal hiding, in case the same page markup was last used for a teacher.
+  document.getElementById("portalBalancePanel").hidden = false;
+  document.getElementById("portalGradesPanel").hidden = false;
+  document.getElementById("portalSubjectsHeading").textContent = "My subjects";
+
   document.getElementById("portalStudentName").textContent = student.name;
-  document.getElementById("portalStudentMeta").textContent = `${student.studentNo} · ${student.gradeLevel}`;
-  document.getElementById("portalBalance").textContent = `₱${Number(student.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  document.getElementById("portalStudentMeta").textContent = `${student.studentNo} · ${student.gradeLevel}${student.sectionId ? " · " + sectionName(student.sectionId) : ""}`;
+  const balance = Number(student.balance || 0);
+  document.getElementById("portalBalance").textContent = `₱${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  const payBtn = document.getElementById("portalPayBtn");
+  payBtn.hidden = balance <= 0;
+  payBtn.dataset.balance = balance;
+
+  // Subjects are assigned per grade level (every section within a grade shares
+  // the same subject list), so a student's own gradeLevel is what scopes both
+  // their subject list and which of their grade records are shown here.
+  const gradeSubjects = data.subjects.filter(s => s.gradeLevel === student.gradeLevel);
+  const gradeSubjectIds = new Set(gradeSubjects.map(s => s.id));
 
   const subjectsTbody = document.querySelector("#portalSubjectsTable tbody");
   const subjectsEmpty = document.getElementById("portalSubjectsEmpty");
-  if (student.permissions.studentsViewSubjects && data.subjects.length) {
+  subjectsEmpty.textContent = "Subject visibility is currently turned off for your account. Ask an admin to enable it.";
+  if (student.permissions.studentsViewSubjects && gradeSubjects.length) {
     subjectsEmpty.hidden = true;
-    subjectsTbody.innerHTML = data.subjects.map(s => `<tr><td>${s.code}</td><td>${s.name}</td><td>${s.units}</td></tr>`).join("");
+    subjectsTbody.innerHTML = gradeSubjects.map(s => `<tr><td>${s.code}</td><td>${s.name}</td><td>${s.units}</td></tr>`).join("");
   } else {
     subjectsEmpty.hidden = false;
     subjectsTbody.innerHTML = "";
@@ -858,7 +1110,7 @@ function renderStudentPortal() {
 
   const gradesTbody = document.querySelector("#portalGradesTable tbody");
   const gradesEmpty = document.getElementById("portalGradesEmpty");
-  const subjectIds = Object.keys(student.grades || {});
+  const subjectIds = Object.keys(student.grades || {}).filter(idStr => gradeSubjectIds.has(Number(idStr)));
   if (student.permissions.studentsViewGradingCard && subjectIds.length) {
     gradesEmpty.hidden = true;
     gradesTbody.innerHTML = subjectIds.map(idStr => {
@@ -961,6 +1213,18 @@ function openModal(entityKey, mode, id = null) {
     wrap.innerHTML = `<span>${field.label}</span>${inputHtml}`;
     modalFields.appendChild(wrap);
   });
+
+  // Existing teacher records only have a combined `name` on file (no stored
+  // firstName/middleName/lastName), so split it just to prefill these fields.
+  if (entityKey === "teachers" && row) {
+    const { firstName, middleName, lastName } = splitFullName(row.name);
+    const firstInput = modalFields.querySelector('[data-key="firstName"]');
+    const middleInput = modalFields.querySelector('[data-key="middleName"]');
+    const lastInput = modalFields.querySelector('[data-key="lastName"]');
+    if (firstInput) firstInput.value = firstName;
+    if (middleInput) middleInput.value = middleName;
+    if (lastInput) lastInput.value = lastName;
+  }
 
   modalSubmit.style.display = mode === "view" ? "none" : "inline-block";
   modalSubmit.disabled = false;
@@ -1092,6 +1356,21 @@ function openModal(entityKey, mode, id = null) {
     });
 
     birthDateInput.addEventListener("change", refreshStudentNo);
+
+    // A teacher (never an admin) can only ever place a student into their own
+    // advisory section — added students go straight into it, and an existing
+    // student they're editing can't be reassigned out of it. Lock both
+    // fields down to that one section instead of leaving every grade/section
+    // in the school pickable.
+    if (currentUser && currentUser.role === "teacher") {
+      const advisory = advisorySectionForTeacher(currentUser.teacherId);
+      if (advisory) {
+        gradeSelect.value = advisory.gradeLevel;
+        gradeSelect.disabled = true;
+        sectionSelect.innerHTML = `<option value="${advisory.id}" selected>${advisory.name}</option>`;
+        sectionSelect.disabled = true;
+      }
+    }
   }
 }
 
@@ -1122,7 +1401,11 @@ modalForm.addEventListener("submit", (e) => {
       return;
     }
     if (field.type === "number") value = Number(value);
-    if (field.key.endsWith("Id") && value !== "") value = Number(value);
+    // Blank select on an *Id field means "none chosen" — must be null, not
+    // "". Sending "" to a bigint column (adviser_id, section_id, ...) makes
+    // Supabase reject the whole insert/update with a 400, which silently
+    // discarded the record client-side thought it had saved.
+    if (field.key.endsWith("Id")) value = value === "" ? null : Number(value);
     draft[field.key] = value;
   });
 
@@ -1136,8 +1419,19 @@ modalForm.addEventListener("submit", (e) => {
     }
   }
 
+  if (entityKey === "teachers") {
+    draft.name = buildFullName(draft.firstName, draft.middleName, draft.lastName);
+    // New teachers default to "Teacher 1" instead of "— None —". The position
+    // isn't on this form — it's only ever set through the accounts modal in
+    // Admin settings, whose dropdown still starts with "— None —" for anyone
+    // this doesn't apply to (i.e. when editing later and clearing it back out).
+    if (mode === "add" && !draft.position) {
+      draft.position = "Teacher 1";
+    }
+  }
+
   if (entityKey === "students") {
-    draft.name = buildStudentFullName(draft.firstName, draft.middleName, draft.lastName);
+    draft.name = buildFullName(draft.firstName, draft.middleName, draft.lastName);
 
     const duplicate = data.students.find(s => s.id !== draft.id && isDuplicateStudent(s, draft));
     if (duplicate) {
@@ -1168,9 +1462,13 @@ modalForm.addEventListener("submit", (e) => {
 
   if (entityKey === "sections") {
     const normalizedName = (draft.name || "").trim().toLowerCase();
-    const duplicateSection = data.sections.find(s => s.id !== draft.id && (s.name || "").trim().toLowerCase() === normalizedName);
+    const duplicateSection = data.sections.find(s =>
+      s.id !== draft.id &&
+      s.gradeLevel === draft.gradeLevel &&
+      (s.name || "").trim().toLowerCase() === normalizedName
+    );
     if (duplicateSection) {
-      showToast("That section name is already used, even in another grade level.", "error");
+      showToast("That section name is already used in this grade level.", "error");
       modalSubmit.disabled = false;
       return;
     }
@@ -1264,6 +1562,7 @@ function openConfirm(entityKey, id) {
   const name = row.name || row.code || row.studentNo || "this record";
   confirmText.textContent = `"${name}" will be removed from ${config.label}s. This can't be undone.`;
   pendingDelete = { entityKey, id, name };
+  document.getElementById("confirmDelete").disabled = false;
   confirmBackdrop.hidden = false;
 }
 
@@ -1272,8 +1571,9 @@ document.getElementById("confirmCancel").addEventListener("click", () => {
   pendingDelete = null;
 });
 
-document.getElementById("confirmDelete").addEventListener("click", () => {
+document.getElementById("confirmDelete").addEventListener("click", (e) => {
   if (!pendingDelete) return;
+  e.target.disabled = true;
   const { entityKey, id, name } = pendingDelete;
   const config = entityConfig[entityKey];
   data[entityKey] = data[entityKey].filter(r => r.id !== id);
@@ -1292,6 +1592,8 @@ const loadTitle = document.getElementById("loadTitle");
 const loadTableBody = document.querySelector("#loadTable tbody");
 const loadEmpty = document.getElementById("loadEmpty");
 const loadAddSelect = document.getElementById("loadAddSelect");
+const loadAddBtn = document.getElementById("loadAddBtn");
+const loadAdvisoryNote = document.getElementById("loadAdvisoryNote");
 
 let currentLoadTeacherId = null;
 
@@ -1303,9 +1605,19 @@ function openLoadModal(teacherId) {
   loadBackdrop.hidden = false;
 }
 
+function normalizeGradeLevel(g) {
+  return (g || "").trim().toLowerCase();
+}
+
 function renderLoadModal() {
   const assigned = data.subjects.filter(s => (s.teacherIds || []).includes(currentLoadTeacherId));
-  const unassigned = data.subjects.filter(s => !(s.teacherIds || []).includes(currentLoadTeacherId));
+  // A teacher can only be given a subject load from the grade level they
+  // advise — e.g. a Grade 7 adviser only sees Grade 7 subjects to add.
+  const advisoryGrade = teacherAdvisoryGradeLevel(currentLoadTeacherId);
+  const unassigned = data.subjects.filter(s =>
+    !(s.teacherIds || []).includes(currentLoadTeacherId) &&
+    normalizeGradeLevel(s.gradeLevel) === normalizeGradeLevel(advisoryGrade)
+  );
 
   loadTableBody.innerHTML = "";
   loadEmpty.hidden = assigned.length > 0;
@@ -1321,9 +1633,19 @@ function renderLoadModal() {
     loadTableBody.appendChild(tr);
   });
 
-  loadAddSelect.innerHTML = unassigned.length
-    ? unassigned.map(s => `<option value="${s.id}">${s.code} — ${s.name}</option>`).join("")
-    : `<option value="">No other subjects available</option>`;
+  if (!advisoryGrade) {
+    loadAdvisoryNote.textContent = "This teacher isn't advising a section yet — assign them as a section adviser first to enable adding subjects.";
+    loadAddSelect.innerHTML = `<option value="">No grade level assigned</option>`;
+    loadAddSelect.disabled = true;
+    loadAddBtn.disabled = true;
+  } else {
+    loadAdvisoryNote.textContent = `Only ${advisoryGrade} subjects can be added — this teacher advises a ${advisoryGrade} section.`;
+    loadAddSelect.innerHTML = unassigned.length
+      ? unassigned.map(s => `<option value="${s.id}">${s.code} — ${s.name}</option>`).join("")
+      : `<option value="">No other ${advisoryGrade} subjects available</option>`;
+    loadAddSelect.disabled = unassigned.length === 0;
+    loadAddBtn.disabled = unassigned.length === 0;
+  }
 }
 
 loadTableBody.addEventListener("click", (e) => {
@@ -1388,9 +1710,29 @@ function fmtGrade(value) {
   return typeof value === "number" ? value : `<span class="rating-pending">Pending</span>`;
 }
 
+// Set fresh each time the grading card sheet opens.
+// Grades are a teacher's job, not an admin's — so an admin account is always
+// view-only here regardless of the teacher permission checkboxes.
+let currentGradesEditAllowed = true;
+// Balance is the reverse: admin-only. Teachers can't touch it from this sheet.
+let currentBalanceEditAllowed = false;
+// Historically let a Principal/Vice Principal edit any quarter at any time.
+// Now moot for them since seniorPosition blocks their editing outright (see
+// openGradesModal) — kept for any future role that both edits grades and
+// needs the quarter lock bypassed.
+let currentQuarterLockBypassed = false;
+// Why grade cells are disabled right now — shown in the disabled input's
+// title. Only meaningful when currentGradesEditAllowed is false.
+let currentGradesLockedReason = "";
+
 function gradeCellHtml(quarterLabel, quarterKey, value) {
-  const locked = isQuarterLocked(quarterLabel);
   const displayValue = typeof value === "number" ? value : "";
+  if (!currentGradesEditAllowed) {
+    return `<input type="number" class="grade-input" min="0" max="100" step="1"
+      data-quarter="${quarterKey}" value="${displayValue}" placeholder="—"
+      disabled title="${currentGradesLockedReason}">`;
+  }
+  const locked = !currentQuarterLockBypassed && isQuarterLocked(quarterLabel);
   return `<input type="number" class="grade-input" min="0" max="100" step="1"
     data-quarter="${quarterKey}" value="${displayValue}" placeholder="—"
     ${locked ? `disabled title="Locked — ${quarterLabel} has already passed."` : ""}>`;
@@ -1398,16 +1740,57 @@ function gradeCellHtml(quarterLabel, quarterKey, value) {
 
 function openGradesModal(studentId) {
   currentGradesStudentId = studentId;
+  const role = currentUser ? currentUser.role : "admin";
+  // Grades: teachers only (and only if their "Edit grades" checkbox is on).
+  // Admin accounts can look, but never edit, a student's grades here.
+  const student0 = data.students.find(s => s.id === studentId);
+  const teacherRecord = currentTeacherRecord();
+  const seniorPosition = isSeniorTeacherPosition(teacherRecord);
+  const fullAccess = hasFullGradesAccess();
+  // Principal, Vice Principal, and Dean can look at any student's grades but
+  // never edit them, regardless of the "Edit grades" checkbox or whether
+  // they're that student's section adviser.
+  currentGradesEditAllowed = role === "teacher" && !seniorPosition && teacherCan("teachersEditGrades") && (fullAccess || isSectionAdviser(student0 && student0.sectionId));
+  currentQuarterLockBypassed = role === "teacher" && fullAccess && !seniorPosition;
+  currentGradesLockedReason = seniorPosition
+    ? `Locked — ${teacherRecord.position} accounts can view grades but not edit them.`
+    : "Locked — your account's Edit grades access is turned off.";
+  // Balance: admin only.
+  currentBalanceEditAllowed = role === "admin";
+
   const student = data.students.find(s => s.id === studentId);
   gradesTitle.textContent = `Grading card sheet — ${student.name}`;
-  gradesPeriodNote.textContent = `Currently on ${settings.period}. Earlier quarters are locked and can no longer be edited.`;
+  if (role === "admin") {
+    gradesPeriodNote.textContent = "Viewing only — grades are entered and edited by teachers, not admin accounts.";
+  } else if (seniorPosition) {
+    gradesPeriodNote.textContent = `Viewing only — ${teacherRecord.position} accounts can view grades but not edit them.`;
+  } else if (currentGradesEditAllowed) {
+    gradesPeriodNote.textContent = `Currently on ${settings.period}. Earlier quarters are locked and can no longer be edited.`;
+  } else {
+    gradesPeriodNote.textContent = "Grades are locked for your account — ask an admin to turn on Edit grades access.";
+  }
+  const gradesSaveBtnEl = document.getElementById("gradesSaveBtn");
+  gradesSaveBtnEl.hidden = !(currentGradesEditAllowed || currentBalanceEditAllowed);
+  gradesSaveBtnEl.disabled = false;
 
-  const subjectIds = Object.keys(student.grades || {});
+  // Balance, shown top-most in the sheet.
+  const balanceInput = document.getElementById("gradesBalanceInput");
+  balanceInput.value = student.balance != null ? Number(student.balance) : "";
+  balanceInput.disabled = !currentBalanceEditAllowed;
 
-  gradesTableBody.innerHTML = subjectIds.map(idStr => {
-    const subjectId = Number(idStr);
+  if (!student.grades) student.grades = {};
+
+  // Every subject assigned to this student's grade level (sections within a
+  // grade all share the same subject list), not just the ones that already
+  // happen to have a grade recorded — so a freshly-added subject still shows.
+  const subjectIds = data.subjects
+    .filter(su => su.gradeLevel === student.gradeLevel)
+    .sort((a, b) => a.code.localeCompare(b.code))
+    .map(su => su.id);
+
+  gradesTableBody.innerHTML = subjectIds.map(subjectId => {
     const subject = data.subjects.find(s => s.id === subjectId);
-    const g = student.grades[idStr];
+    const g = student.grades[subjectId] || {};
     const final = computeFinalRating(g);
     return `
       <tr data-subject-row="${subjectId}">
@@ -1415,7 +1798,8 @@ function openGradesModal(studentId) {
         ${QUARTERS.map(q => `<td>${gradeCellHtml(q.label, q.key, g[q.key])}</td>`).join("")}
         <td class="final-rating-cell">${fmtGrade(final)}</td>
       </tr>`;
-  }).join("") + `
+  }).join("") + (subjectIds.length ? "" : `
+    <tr><td colspan="6" class="empty-note-cell">No subjects assigned to ${student.gradeLevel} yet.</td></tr>`) + `
     <tr class="row-final">
       <td colspan="5">General average</td>
       <td class="general-average-cell">${fmtGrade(computeGeneralAverage(student))}</td>
@@ -1467,8 +1851,34 @@ document.getElementById("gradesSaveBtn").addEventListener("click", () => {
     return;
   }
 
-  logActivity(`Updated grades for ${student.name} (${settings.period}).`, "Student", "Edit", student.name);
-  showToast("Grades saved.", "success");
+  let newBalance = student.balance;
+  if (currentBalanceEditAllowed) {
+    const balanceInput = document.getElementById("gradesBalanceInput");
+    const rawBalance = balanceInput.value.trim();
+    if (rawBalance === "") {
+      newBalance = 0;
+    } else {
+      const balNum = Number(rawBalance);
+      if (Number.isNaN(balNum) || balNum < 0) {
+        showToast("Balance must be a valid non-negative number.", "warning");
+        saveBtn.disabled = false;
+        return;
+      }
+      newBalance = balNum;
+    }
+  }
+  student.balance = newBalance;
+
+  const what = currentGradesEditAllowed && currentBalanceEditAllowed ? "grades and balance"
+    : currentGradesEditAllowed ? "grades" : "balance";
+  logActivity(`Updated ${what} for ${student.name}${currentGradesEditAllowed ? ` (${settings.period})` : ""}.`, "Student", "Edit", student.name);
+  showToast(`${currentGradesEditAllowed ? "Grades" : "Balance"} saved.`, "success");
+
+  if (currentBalanceEditAllowed) {
+    supabaseClient.from("students").update({ balance: newBalance }).eq("id", student.id).then(({ error }) => {
+      if (error) { console.error(error); showToast("Couldn't save balance to the database.", "error"); }
+    });
+  }
 
   const gradeRows = Object.keys(student.grades).map(subjectId => ({
     student_id: student.id,
@@ -1485,7 +1895,10 @@ document.getElementById("gradesSaveBtn").addEventListener("click", () => {
   }
 
   openGradesModal(currentGradesStudentId);
-  setTimeout(() => { saveBtn.disabled = false; }, 400);
+  // A successful save locks the button grey — reopening the grading sheet
+  // (openGradesModal, just above) is what resets it, not a timer, so the
+  // user has to close and reopen it to save again.
+  saveBtn.disabled = true;
 });
 
 function closeGradesModal() { gradesBackdrop.hidden = true; }
@@ -1624,11 +2037,11 @@ document.getElementById("sectionSearchClear").addEventListener("click", () => {
 /* ============================================
    USER ACCOUNTS MODALS (Admin Settings)
    ============================================ */
-const TEACHER_POSITIONS = ["Dean", "Vice Principal", "Guidance Counselor", "Disciplinary Officer"];
-
 function renderTeacherAccountsModal() {
   const tbody = document.querySelector("#teacherAccountsTable tbody");
-  tbody.innerHTML = data.teachers.length ? data.teachers.map(t => `
+  tbody.innerHTML = data.teachers.length ? data.teachers.map(t => {
+    if (!t.permissions) t.permissions = { ...DEFAULT_TEACHER_PERMISSIONS };
+    return `
     <tr>
       <td>${t.name}</td>
       <td>${t.username || "—"}</td>
@@ -1639,7 +2052,17 @@ function renderTeacherAccountsModal() {
           ${TEACHER_POSITIONS.map(p => `<option value="${p}" ${t.position === p ? "selected" : ""}>${p}</option>`).join("")}
         </select>
       </td>
-    </tr>`).join("") : `<tr><td colspan="4">No teacher accounts yet.</td></tr>`;
+      <td>
+        <div class="checkbox-list checkbox-list--inline">
+          ${TEACHER_PERMS.map(p => `
+            <label class="checkbox-option">
+              <input type="checkbox" data-teacher-cred="${t.id}" data-teacher-cred-key="${p.key}" ${t.permissions[p.key] ? "checked" : ""}>
+              <span>${p.label}</span>
+            </label>`).join("")}
+        </div>
+      </td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="5">No teacher accounts yet.</td></tr>`;
 
   tbody.querySelectorAll("[data-position]").forEach(sel => {
     sel.addEventListener("change", (e) => {
@@ -1649,6 +2072,27 @@ function renderTeacherAccountsModal() {
       supabaseClient.from("teachers").update({ position: teacher.position || null }).eq("id", teacher.id).then(({ error }) => {
         if (error) { console.error(error); showToast("Couldn't save position to the database.", "error"); }
       });
+    });
+  });
+
+  tbody.querySelectorAll("[data-teacher-cred]").forEach(cb => {
+    cb.addEventListener("change", (e) => {
+      const teacher = data.teachers.find(t => t.id === Number(e.target.dataset.teacherCred));
+      if (!teacher) return;
+      const key = e.target.dataset.teacherCredKey;
+      teacher.permissions[key] = e.target.checked;
+      const label = TEACHER_PERMS.find(p => p.key === key).label;
+      logActivity(`${e.target.checked ? "Granted" : "Removed"} access for ${teacher.name}: ${label}.`, "Admin", "Edit", teacher.name);
+      const column = TEACHER_PERM_COLUMNS[key];
+      supabaseClient.from("teachers").update({ [column]: e.target.checked }).eq("id", teacher.id).then(({ error }) => {
+        if (error) { console.error(error); showToast("Couldn't save access to the database.", "error"); }
+      });
+      // If this admin is looking at the account of the teacher currently signed in
+      // (rare, but possible with two tabs), reflect the change immediately.
+      if (currentUser && currentUser.role === "teacher" && currentUser.teacherId === teacher.id) {
+        applyRoleRestrictions();
+        renderAll();
+      }
     });
   });
 }
@@ -1675,19 +2119,17 @@ function renderStudentAccountsModal() {
 const STUDENT_PERMS = [
   { key: "studentsViewSubjects", label: "View the subjects assigned to them" },
   { key: "studentsViewGradingCard", label: "View their own grading card" },
-  { key: "studentsViewTeachersPage", label: "View the Teachers page" },
 ];
 const STUDENT_PERM_COLUMNS = {
   studentsViewSubjects: "can_view_subjects",
   studentsViewGradingCard: "can_view_grading_card",
-  studentsViewTeachersPage: "can_view_teachers_page",
 };
 
 function openStudentCredentialsModal(id) {
   const student = data.students.find(s => s.id === id);
   if (!student) return;
   if (!student.permissions) {
-    student.permissions = { studentsViewSubjects: true, studentsViewGradingCard: true, studentsViewTeachersPage: true };
+    student.permissions = { studentsViewSubjects: true, studentsViewGradingCard: true };
   }
 
   document.getElementById("studentCredentialsTitle").textContent = student.name;
@@ -1743,6 +2185,62 @@ wireSimpleModalClose("studentAccountsBackdrop", "studentAccountsClose", "student
 wireSimpleModalClose("studentCredentialsBackdrop", "studentCredentialsClose", "studentCredentialsDone");
 
 /* ============================================
+   PAY BALANCE (presentation only — no real payment wiring)
+   ============================================ */
+const PAYMENT_METHODS = [
+  { icon: "📱", name: "GCash", desc: "Pay via GCash e-wallet" },
+  { icon: "💠", name: "Maya", desc: "Pay via Maya (PayMaya) e-wallet or card" },
+  { icon: "🚗", name: "GrabPay", desc: "Pay via your GrabPay wallet" },
+  { icon: "🏦", name: "Online banking", desc: "BPI, BDO, UnionBank, Metrobank & more" },
+  { icon: "💳", name: "Credit / Debit card", desc: "Visa, Mastercard, JCB" },
+  { icon: "🏪", name: "Over-the-counter", desc: "7-Eleven, Cebuana Lhuillier, Bayad Center" },
+  { icon: "🌐", name: "PayPal", desc: "Pay using your PayPal balance or card" },
+];
+
+let selectedPaymentMethod = null;
+
+function openPaymentMethodsModal() {
+  const student = data.students.find(s => s.id === currentUser.studentId);
+  if (!student) return;
+  const balance = Number(student.balance || 0);
+
+  selectedPaymentMethod = null;
+  document.getElementById("paymentBalanceFigure").textContent = `₱${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+
+  const grid = document.getElementById("paymentMethodGrid");
+  grid.innerHTML = PAYMENT_METHODS.map(m => `
+    <button type="button" class="payment-method-card" data-method="${m.name}">
+      <span class="payment-method-icon">${m.icon}</span>
+      <span class="payment-method-name">${m.name}</span>
+      <span class="payment-method-desc">${m.desc}</span>
+    </button>`).join("");
+
+  const proceedBtn = document.getElementById("paymentMethodsProceed");
+  proceedBtn.disabled = true;
+
+  grid.querySelectorAll("[data-method]").forEach(card => {
+    card.addEventListener("click", () => {
+      grid.querySelectorAll(".payment-method-card").forEach(c => c.classList.remove("is-selected"));
+      card.classList.add("is-selected");
+      selectedPaymentMethod = card.dataset.method;
+      proceedBtn.disabled = false;
+    });
+  });
+
+  document.getElementById("paymentMethodsBackdrop").hidden = false;
+}
+
+document.getElementById("portalPayBtn").addEventListener("click", openPaymentMethodsModal);
+
+document.getElementById("paymentMethodsProceed").addEventListener("click", () => {
+  if (!selectedPaymentMethod) return;
+  showToast(`This is a preview — ${selectedPaymentMethod} isn't connected yet.`, "warning");
+  document.getElementById("paymentMethodsBackdrop").hidden = true;
+});
+
+wireSimpleModalClose("paymentMethodsBackdrop", "paymentMethodsClose", "paymentMethodsCancel");
+
+/* ============================================
    ADMIN SETTINGS
    ============================================ */
 function loadSettingsForm() {
@@ -1763,6 +2261,7 @@ function loadSettingsForm() {
   document.getElementById("set-scale").value = settings.scale;
   document.getElementById("set-passing").value = settings.passing;
   document.getElementById("sidebarYear").textContent = settings.schoolYear;
+  document.getElementById("saveSettingsBtn").disabled = false;
 }
 
 document.getElementById("settingsForm").addEventListener("submit", (e) => {
@@ -1806,10 +2305,10 @@ document.getElementById("settingsForm").addEventListener("submit", (e) => {
   }).eq("id", true).then(({ error }) => {
     if (error) { console.error(error); showToast("Couldn't save settings to the database.", "error"); }
   });
-  setTimeout(() => {
-    flash.hidden = true;
-    saveSettingsBtn.disabled = false;
-  }, 2000);
+  // A successful save locks the button grey — leaving Settings and coming
+  // back (loadSettingsForm, called from the nav click) is what resets it,
+  // not a timer.
+  setTimeout(() => { flash.hidden = true; }, 2000);
 });
 
 document.getElementById("resetDataBtn").addEventListener("click", () => {

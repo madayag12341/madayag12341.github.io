@@ -116,7 +116,7 @@
       <header class="page-head">
         <div>
           <p class="page-eyebrow">Overview</p>
-          <h1>Good day, Registrar.</h1>
+          <h1 id="homeGreeting">Good day, Registrar.</h1>
           <p class="page-desc">Here's where the school year stands right now.</p>
         </div>
       </header>
@@ -424,13 +424,16 @@
         </div>
       </header>
 
-      <div class="ledger-panel">
+      <div class="ledger-panel" id="portalBalancePanel">
         <h2>Account balance</h2>
-        <p class="page-desc balance-figure" id="portalBalance"></p>
+        <div class="balance-row">
+          <p class="page-desc balance-figure" id="portalBalance"></p>
+          <button type="button" class="btn-seal" id="portalPayBtn" hidden>Pay balance</button>
+        </div>
       </div>
 
-      <div class="ledger-panel">
-        <h2>My subjects</h2>
+      <div class="ledger-panel" id="portalSubjectsPanel">
+        <h2 id="portalSubjectsHeading">My subjects</h2>
         <div class="grades-table-wrap">
           <table class="ledger-table" id="portalSubjectsTable">
             <thead><tr><th>Code</th><th>Subject</th><th>Units</th></tr></thead>
@@ -440,7 +443,7 @@
         <p class="empty-note" id="portalSubjectsEmpty" hidden>Subject visibility is currently turned off for your account. Ask an admin to enable it.</p>
       </div>
 
-      <div class="ledger-panel">
+      <div class="ledger-panel" id="portalGradesPanel">
         <h2>My grades</h2>
         <div class="grades-table-wrap">
           <table class="ledger-table" id="portalGradesTable">
@@ -504,6 +507,7 @@
     </div>
     <p class="empty-note" id="loadEmpty" hidden>No subjects assigned yet.</p>
 
+    <p class="load-advisory-note" id="loadAdvisoryNote"></p>
     <div class="load-add-row">
       <select id="loadAddSelect"></select>
       <button type="button" class="btn-seal" id="loadAddBtn">Add subject</button>
@@ -517,15 +521,31 @@
 
 <!-- GRADING CARD SHEET -->
 <div class="modal-backdrop" id="gradesBackdrop" hidden>
-  <div class="modal-card modal-card--wide" role="dialog" aria-modal="true">
+  <div class="modal-card modal-card--extra-wide" role="dialog" aria-modal="true">
     <div class="modal-head">
       <h2 id="gradesTitle">Grading card sheet</h2>
       <button class="modal-close" id="gradesClose" aria-label="Close">&times;</button>
     </div>
     <p class="grades-period-note" id="gradesPeriodNote"></p>
 
+    <div class="grades-balance-row">
+      <label for="gradesBalanceInput">Balance</label>
+      <div class="balance-input-wrap">
+        <span class="balance-currency">₱</span>
+        <input type="number" id="gradesBalanceInput" class="balance-input" min="0" step="0.01" placeholder="0.00">
+      </div>
+    </div>
+
     <div class="grades-table-wrap">
-      <table class="ledger-table" id="gradesTable">
+      <table class="ledger-table grades-table" id="gradesTable">
+        <colgroup>
+          <col class="col-subject">
+          <col class="col-quarter">
+          <col class="col-quarter">
+          <col class="col-quarter">
+          <col class="col-quarter">
+          <col class="col-final">
+        </colgroup>
         <thead>
           <tr><th>Subject</th><th>1st Grading</th><th>2nd Grading</th><th>3rd Grading</th><th>4th Grading</th><th>Final rating</th></tr>
         </thead>
@@ -576,15 +596,16 @@
 
 <!-- TEACHER ACCOUNTS -->
 <div class="modal-backdrop" id="teacherAccountsBackdrop" hidden>
-  <div class="modal-card modal-card--wide" role="dialog" aria-modal="true">
+  <div class="modal-card modal-card--extra-wide" role="dialog" aria-modal="true">
     <div class="modal-head">
       <h2>Teacher accounts</h2>
       <button class="modal-close" id="teacherAccountsClose" aria-label="Close">&times;</button>
     </div>
+    <p class="grades-period-note">Set each teacher's position, then tick what their login is allowed to do.</p>
     <div class="grades-table-wrap">
       <table class="ledger-table" id="teacherAccountsTable">
         <thead>
-          <tr><th>Name</th><th>Username</th><th>Status</th><th>Position</th></tr>
+          <tr><th>Name</th><th>Username</th><th>Status</th><th>Position</th><th>Access</th></tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -629,6 +650,27 @@
     <div class="checkbox-list" id="studentCredentialsList"></div>
     <div class="modal-actions">
       <button type="button" class="btn-ghost" id="studentCredentialsDone">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAY BALANCE (presentation only — nothing here actually charges anything) -->
+<div class="modal-backdrop" id="paymentMethodsBackdrop" hidden>
+  <div class="modal-card modal-card--wide" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2>Pay your balance</h2>
+      <button class="modal-close" id="paymentMethodsClose" aria-label="Close">&times;</button>
+    </div>
+    <p class="grades-period-note">Outstanding balance: <strong id="paymentBalanceFigure"></strong></p>
+    <p class="page-desc">Pick a payment method below.</p>
+
+    <div class="payment-method-grid" id="paymentMethodGrid"></div>
+
+    <p class="empty-note payment-preview-note">This is a preview of the payment options — nothing is charged and no payment is processed here yet.</p>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="paymentMethodsCancel">Cancel</button>
+      <button type="button" class="btn-seal" id="paymentMethodsProceed" disabled>Proceed to payment</button>
     </div>
   </div>
 </div>
