@@ -582,7 +582,17 @@ function computeFinalRating(grades) {
   return null;
 }
 function computeGeneralAverage(student) {
-  const finals = Object.values(student.grades || {}).map(computeFinalRating);
+  // Only count subjects currently assigned to this student's grade level —
+  // stale/orphaned entries in student.grades (e.g. from a subject that was
+  // removed or a past grade level) must not block the average forever.
+  const currentSubjectIds = data.subjects
+    .filter(su => su.gradeLevel === student.gradeLevel)
+    .map(su => String(su.id));
+
+  const finals = currentSubjectIds
+    .map(id => student.grades && student.grades[id])
+    .map(g => computeFinalRating(g || {}));
+
   if (finals.length === 0 || finals.some(f => f === null)) return null;
   const avg = finals.reduce((a, b) => a + b, 0) / finals.length;
   return Math.round(avg * 100) / 100;
