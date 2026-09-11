@@ -544,6 +544,18 @@ function statusTag(status) {
   const cls = status === "Active" ? "active" : "inactive";
   return `<span class="status-tag ${cls}">${status}</span>`;
 }
+// Outstanding balance is edited on the Students Account page now, not here —
+// this just reflects the current figure as a Yes/No: any balance above 0
+// reads "Yes" (they owe money), a balance of 0 reads "No" (settled).
+function outstandingBalanceLabel(balance) {
+  const bal = Number(balance || 0);
+  return bal > 0 ? "Yes" : "No";
+}
+function outstandingBalanceTagHtml(balance) {
+  const label = outstandingBalanceLabel(balance);
+  const cls = label === "Yes" ? "inactive" : "active";
+  return { html: `<span class="status-tag ${cls}">${label}</span>`, cls, label };
+}
 function advisoryCell(teacherId) {
   const section = data.sections.find(s => s.adviserId == teacherId);
   return section ? section.name : `<span class="advisory-none">None assigned</span>`;
@@ -608,6 +620,7 @@ function renderAll() {
   refreshStudentSectionFilterOptions();
   refreshSubjectFilterOptions();
   refreshSectionFilterOptions();
+  renderStudentsAccountPage();
 }
 
 function refreshStudentSectionFilterOptions() {
@@ -864,7 +877,9 @@ function buildRowActions(entityKey, row) {
   }
 
   if (entityKey === "teachers") {
-    const canEdit = role === "admin" || (role === "teacher" && teacherCan("teachersEditTeachers"));
+    // Principal/Vice Principal can always edit teacher records, regardless
+    // of their own "Edit teachers" checkbox — same standing as an admin here.
+    const canEdit = role === "admin" || (role === "teacher" && (teacherCan("teachersEditTeachers") || hasFullGradesAccess()));
     if (canEdit) {
       parts.push(`<button class="icon-btn" data-edit="${entityKey}:${row.id}" title="Edit" aria-label="Edit">${ROW_ICONS.edit}</button>`);
     }
@@ -954,15 +969,19 @@ function activateNavPage(pageName) {
   if (currentUser && currentUser.role === "student" && pageName !== "portal") {
     pageName = "portal";
   }
-  // Same idea for teachers: Admin settings is always admin-only. The Teachers
-  // page is too, unless this teacher's "Edit teachers" checkbox is on — their
-  // nav buttons are already hidden/shown to match, but that alone doesn't stop
-  // someone from calling activateNavPage("teachers") directly (e.g. devtools),
-  // so this is the real gate.
+  // Same idea for teachers: Admin Settings and Students Account are always
+  // admin-only, full stop. Teachers is admin-only too, except the Principal
+  // and Vice Principal positions (hasFullGradesAccess) — their nav buttons
+  // are already hidden/shown to match, but that alone doesn't stop someone
+  // from calling activateNavPage(...) directly (e.g. devtools), so this is
+  // the real gate.
   if (currentUser && currentUser.role === "teacher" && pageName === "settings") {
     pageName = "home";
   }
-  if (currentUser && currentUser.role === "teacher" && pageName === "teachers" && !teacherCan("teachersEditTeachers")) {
+  if (currentUser && currentUser.role === "teacher" && pageName === "studentsAccount") {
+    pageName = "home";
+  }
+  if (currentUser && currentUser.role === "teacher" && pageName === "teachers" && !hasFullGradesAccess()) {
     pageName = "home";
   }
   document.querySelectorAll(".nav-item").forEach(b => b.classList.remove("is-active"));
@@ -974,6 +993,7 @@ function activateNavPage(pageName) {
   // Settings has no modal to reopen, so landing on the page itself is the
   // equivalent "reopen" event that unlocks its Save button.
   if (pageName === "settings") loadSettingsForm();
+  if (pageName === "studentsAccount") renderStudentsAccountPage();
 }
 
 document.querySelectorAll(".nav-item").forEach(btn => {
@@ -1001,6 +1021,7 @@ function applyRoleRestrictions() {
   const homeNav = document.querySelector('.nav-item[data-page="home"]');
   const teachersNav = document.querySelector('.nav-item[data-page="teachers"]');
   const settingsNav = document.querySelector('.nav-item[data-page="settings"]');
+  const studentsAccountNav = document.querySelector('.nav-item[data-page="studentsAccount"]');
   const studentsNav = document.querySelector('.nav-item[data-page="students"]');
   const subjectsNav = document.querySelector('.nav-item[data-page="subjects"]');
   const sectionsNav = document.querySelector('.nav-item[data-page="sections"]');
@@ -1012,19 +1033,24 @@ function applyRoleRestrictions() {
   }
 
   if (currentUser.role === "teacher") {
-    settingsNav.hidden = true;
-    document.querySelectorAll("[data-add]").forEach(btn => { btn.hidden = true; });
-
     const teacher = data.teachers.find(t => t.id === currentUser.teacherId);
     const perms = teacher && teacher.permissions ? teacher.permissions : DEFAULT_TEACHER_PERMISSIONS;
+    // Admin Settings and Students Account are always admin-only — no
+    // teacher login, including Principal/Vice Principal, ever sees them.
+    settingsNav.hidden = true;
+    studentsAccountNav.hidden = true;
+    // Teachers is hidden from every teacher login except the Principal and
+    // Vice Principal positions, who see it.
+    const seesAdminNav = hasFullGradesAccess();
+    document.querySelectorAll("[data-add]").forEach(btn => { btn.hidden = true; });
+
     setHomeGreeting((teacher && teacher.position) || "Teacher");
 
-    // "Edit teachers" governs whether this teacher can even see the Teachers
-    // page, and — like "Edit students" below — also whether they can add a
-    // new teacher account, not just edit existing ones.
-    teachersNav.hidden = !perms.teachersEditTeachers;
+    // Teachers nav: Principal/Vice Principal always see it; every other
+    // teacher has it hidden regardless of their "Edit teachers" checkbox.
+    teachersNav.hidden = !seesAdminNav;
     const addTeacherBtn = document.querySelector('[data-add="teachers"]');
-    if (addTeacherBtn) addTeacherBtn.hidden = !perms.teachersEditTeachers;
+    if (addTeacherBtn) addTeacherBtn.hidden = !perms.teachersEditTeachers && !seesAdminNav;
 
     // "Edit students" also governs whether this teacher can add a new one —
     // but only if they're actually advising a section, since a new student a
@@ -1048,6 +1074,7 @@ function applyRoleRestrictions() {
     homeNav.hidden = true;
     teachersNav.hidden = true;
     settingsNav.hidden = true;
+    studentsAccountNav.hidden = true;
     studentsNav.hidden = true;
     subjectsNav.hidden = true;
     sectionsNav.hidden = true;
@@ -1724,8 +1751,6 @@ function fmtGrade(value) {
 // Grades are a teacher's job, not an admin's — so an admin account is always
 // view-only here regardless of the teacher permission checkboxes.
 let currentGradesEditAllowed = true;
-// Balance is the reverse: admin-only. Teachers can't touch it from this sheet.
-let currentBalanceEditAllowed = false;
 // Historically let a Principal/Vice Principal edit any quarter at any time.
 // Now moot for them since seniorPosition blocks their editing outright (see
 // openGradesModal) — kept for any future role that both edits grades and
@@ -1765,8 +1790,6 @@ function openGradesModal(studentId) {
   currentGradesLockedReason = seniorPosition
     ? `Locked — ${teacherRecord.position} accounts can view grades but not edit them.`
     : "Locked — your account's Edit grades access is turned off.";
-  // Balance: admin only.
-  currentBalanceEditAllowed = role === "admin";
 
   const student = data.students.find(s => s.id === studentId);
   gradesTitle.textContent = `Grading card sheet — ${student.name}`;
@@ -1780,13 +1803,15 @@ function openGradesModal(studentId) {
     gradesPeriodNote.textContent = "Grades are locked for your account — ask an admin to turn on Edit grades access.";
   }
   const gradesSaveBtnEl = document.getElementById("gradesSaveBtn");
-  gradesSaveBtnEl.hidden = !(currentGradesEditAllowed || currentBalanceEditAllowed);
+  gradesSaveBtnEl.hidden = !currentGradesEditAllowed;
   gradesSaveBtnEl.disabled = false;
 
-  // Balance, shown top-most in the sheet.
-  const balanceInput = document.getElementById("gradesBalanceInput");
-  balanceInput.value = student.balance != null ? Number(student.balance) : "";
-  balanceInput.disabled = !currentBalanceEditAllowed;
+  // Outstanding balance, shown top-most in the sheet — read-only here. The
+  // actual balance figure is set on the Students Account page (admin only).
+  const outstandingBadge = document.getElementById("gradesOutstandingBadge");
+  const tag = outstandingBalanceTagHtml(student.balance);
+  outstandingBadge.textContent = tag.label;
+  outstandingBadge.className = `status-tag ${tag.cls}`;
 
   if (!student.grades) student.grades = {};
 
@@ -1861,34 +1886,8 @@ document.getElementById("gradesSaveBtn").addEventListener("click", () => {
     return;
   }
 
-  let newBalance = student.balance;
-  if (currentBalanceEditAllowed) {
-    const balanceInput = document.getElementById("gradesBalanceInput");
-    const rawBalance = balanceInput.value.trim();
-    if (rawBalance === "") {
-      newBalance = 0;
-    } else {
-      const balNum = Number(rawBalance);
-      if (Number.isNaN(balNum) || balNum < 0) {
-        showToast("Balance must be a valid non-negative number.", "warning");
-        saveBtn.disabled = false;
-        return;
-      }
-      newBalance = balNum;
-    }
-  }
-  student.balance = newBalance;
-
-  const what = currentGradesEditAllowed && currentBalanceEditAllowed ? "grades and balance"
-    : currentGradesEditAllowed ? "grades" : "balance";
-  logActivity(`Updated ${what} for ${student.name}${currentGradesEditAllowed ? ` (${settings.period})` : ""}.`, "Student", "Edit", student.name);
-  showToast(`${currentGradesEditAllowed ? "Grades" : "Balance"} saved.`, "success");
-
-  if (currentBalanceEditAllowed) {
-    supabaseClient.from("students").update({ balance: newBalance }).eq("id", student.id).then(({ error }) => {
-      if (error) { console.error(error); showToast("Couldn't save balance to the database.", "error"); }
-    });
-  }
+  logActivity(`Updated grades for ${student.name} (${settings.period}).`, "Student", "Edit", student.name);
+  showToast("Grades saved.", "success");
 
   const gradeRows = Object.keys(student.grades).map(subjectId => ({
     student_id: student.id,
@@ -2123,6 +2122,103 @@ function renderStudentAccountsModal() {
       const id = Number(e.currentTarget.dataset.editStudent);
       openStudentCredentialsModal(id);
     });
+  });
+}
+
+/* ============================================
+   STUDENTS ACCOUNT PAGE (admin-only balance editing)
+   ============================================ */
+let studentsAccountFilter = { term: "" };
+
+function getFilteredStudentsAccount() {
+  const term = studentsAccountFilter.term.trim().toLowerCase();
+  return data.students.filter(s => !term || s.name.toLowerCase().includes(term));
+}
+
+function renderStudentsAccountPage() {
+  const tbody = document.querySelector("#table-studentsAccount tbody");
+  const emptyNote = document.getElementById("empty-studentsAccount");
+  if (!tbody) return;
+  const rows = getFilteredStudentsAccount();
+
+  tbody.innerHTML = rows.map(s => `
+    <tr data-student-account-row="${s.id}">
+      <td>${s.name}</td>
+      <td>${s.studentNo}</td>
+      <td>${s.gradeLevel}</td>
+      <td>
+        <div class="balance-input-wrap">
+          <span class="balance-currency">₱</span>
+          <input type="number" class="balance-input" min="0" step="0.01" placeholder="0.00"
+            data-account-balance-input="${s.id}" value="${s.balance != null ? Number(s.balance) : ""}">
+        </div>
+      </td>
+      <td><button type="button" class="icon-btn" data-save-account-balance="${s.id}" title="Save balance" aria-label="Save balance">${ROW_ICONS.edit}</button></td>
+    </tr>`).join("");
+
+  emptyNote.hidden = rows.length !== 0;
+
+  tbody.querySelectorAll("[data-save-account-balance]").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const id = Number(e.currentTarget.dataset.saveAccountBalance);
+      saveStudentAccountBalance(id);
+    });
+  });
+}
+
+function saveStudentAccountBalance(id) {
+  const student = data.students.find(s => s.id === id);
+  if (!student) return;
+  const input = document.querySelector(`[data-account-balance-input="${id}"]`);
+  if (!input) return;
+
+  const raw = input.value.trim();
+  let newBalance;
+  if (raw === "") {
+    newBalance = 0;
+  } else {
+    const num = Number(raw);
+    if (Number.isNaN(num) || num < 0) {
+      showToast("Balance must be a valid non-negative number.", "warning");
+      return;
+    }
+    newBalance = num;
+  }
+
+  student.balance = newBalance;
+  input.value = newBalance;
+
+  logActivity(`Updated account balance for ${student.name}.`, "Student", "Edit", student.name);
+  showToast("Account balance saved.", "success");
+
+  supabaseClient.from("students").update({ balance: newBalance }).eq("id", student.id).then(({ error }) => {
+    if (error) { console.error(error); showToast("Couldn't save balance to the database.", "error"); }
+  });
+
+  // Keep the grading card sheet's Yes/No badge in sync if it's open on this student.
+  if (currentGradesStudentId === id) {
+    const badge = document.getElementById("gradesOutstandingBadge");
+    if (badge) {
+      const tag = outstandingBalanceTagHtml(newBalance);
+      badge.textContent = tag.label;
+      badge.className = `status-tag ${tag.cls}`;
+    }
+  }
+}
+
+const studentsAccountSearchInput = document.getElementById("studentsAccountSearchInput");
+if (studentsAccountSearchInput) {
+  studentsAccountSearchInput.addEventListener("input", () => {
+    studentsAccountFilter.term = studentsAccountSearchInput.value;
+    renderStudentsAccountPage();
+  });
+}
+const studentsAccountSearchClear = document.getElementById("studentsAccountSearchClear");
+if (studentsAccountSearchClear) {
+  studentsAccountSearchClear.addEventListener("click", () => {
+    studentsAccountFilter.term = "";
+    studentsAccountSearchInput.value = "";
+    renderStudentsAccountPage();
   });
 }
 

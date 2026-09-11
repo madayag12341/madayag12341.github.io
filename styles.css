@@ -201,6 +201,10 @@
   .nav-item.is-active .nav-icon {
     color: var(--gold);
   }
+
+  .nav-item[hidden] {
+    display: none;
+  }
   
   .sidebar-foot {
     padding-top: 16px;

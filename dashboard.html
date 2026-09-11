@@ -87,6 +87,16 @@
         </span>
         <span class="nav-label">Admin Settings</span>
       </button>
+      <button class="nav-item" data-page="studentsAccount" id="navStudentsAccount">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="6" width="20" height="13" rx="2"></rect>
+            <path d="M2 10h20"></path>
+            <path d="M6 15h4"></path>
+          </svg>
+        </span>
+        <span class="nav-label">Students Account</span>
+      </button>
       <button class="nav-item" data-page="portal" id="navPortal" hidden>
         <span class="nav-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -414,6 +424,32 @@
       </div>
     </section>
 
+    <!-- STUDENTS ACCOUNT -->
+    <section class="page" id="page-studentsAccount">
+      <header class="page-head">
+        <div>
+          <p class="page-eyebrow">Billing</p>
+          <h1>Students Account</h1>
+          <p class="page-desc">Every enrolled student, with a box to set their account balance.</p>
+        </div>
+      </header>
+
+      <div class="filter-bar">
+        <input type="text" id="studentsAccountSearchInput" placeholder="Search by name…">
+        <button type="button" class="btn-ghost" id="studentsAccountSearchClear">Clear</button>
+      </div>
+
+      <div class="ledger-panel">
+        <table class="ledger-table" id="table-studentsAccount">
+          <thead>
+            <tr><th>Name</th><th>Student no.</th><th>Grade level</th><th>Account balance</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p class="empty-note" id="empty-studentsAccount" hidden>No students yet.</p>
+      </div>
+    </section>
+
     <!-- STUDENT PORTAL -->
     <section class="page" id="page-portal">
       <header class="page-head">
@@ -529,11 +565,8 @@
     <p class="grades-period-note" id="gradesPeriodNote"></p>
 
     <div class="grades-balance-row">
-      <label for="gradesBalanceInput">Balance</label>
-      <div class="balance-input-wrap">
-        <span class="balance-currency">₱</span>
-        <input type="number" id="gradesBalanceInput" class="balance-input" min="0" step="0.01" placeholder="0.00">
-      </div>
+      <label>Outstanding balance</label>
+      <span class="status-tag" id="gradesOutstandingBadge">—</span>
     </div>
 
     <div class="grades-table-wrap">
