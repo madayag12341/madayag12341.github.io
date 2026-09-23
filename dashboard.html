@@ -536,7 +536,7 @@
     <div class="grades-table-wrap">
       <table class="ledger-table" id="loadTable">
         <thead>
-          <tr><th>Code</th><th>Subject</th><th></th></tr>
+          <tr><th>Code</th><th>Subject</th><th>Grade level</th><th></th></tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -589,6 +589,37 @@
     <div class="modal-actions">
       <button type="button" class="btn-ghost" id="gradesDone">Close</button>
       <button type="button" class="btn-seal" id="gradesSaveBtn">Save grades</button>
+    </div>
+  </div>
+</div>
+
+<!-- SUBJECT GRADES (teacher My Portal) -->
+<div class="modal-backdrop" id="subjectGradesBackdrop" hidden>
+  <div class="modal-card modal-card--wide" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2 id="subjectGradesTitle">Edit grades</h2>
+      <button class="modal-close" id="subjectGradesClose" aria-label="Close">&times;</button>
+    </div>
+    <p class="grades-period-note" id="subjectGradesNote"></p>
+
+    <div class="subject-grades-toolbar">
+      <label for="subjectGradesQuarter">Quarter</label>
+      <select id="subjectGradesQuarter"></select>
+    </div>
+
+    <div class="grades-table-wrap">
+      <table class="ledger-table" id="subjectGradesTable">
+        <thead>
+          <tr><th>Student no.</th><th>Name</th><th>Section</th><th id="subjectGradesColHead">Grade</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="empty-note" id="subjectGradesEmpty" hidden>No students in this grade level yet.</p>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="subjectGradesDone">Close</button>
+      <button type="button" class="btn-seal" id="subjectGradesSaveBtn">Save grades</button>
     </div>
   </div>
 </div>

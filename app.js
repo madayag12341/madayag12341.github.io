@@ -135,6 +135,17 @@ function rowToStudent(r) {
       studentsViewGradingCard: r.can_view_grading_card,
     },
     grades: {},
+    // Subject + teacher pairs assigned directly to this student — for
+    // teachers who don't advise a section, so their subject load can still
+    // be tied to specific students. Filled in from student_subject_teachers
+    // after load; see loadAllData().
+    subjectTeachers: [],
+    // Subject codes this student has been explicitly removed from in the
+    // "Subjects & teachers" editor. Without this, subjectRowsForStudent()
+    // has no way to know a subject was removed on purpose (vs. just having
+    // no teacher override yet) and re-adds it on every reload. Filled in
+    // from student_subject_exclusions after load; see loadAllData().
+    excludedSubjectCodes: [],
   };
 }
 function rowToAdmin(r) {
@@ -171,19 +182,21 @@ const ROW_MAPPERS = { teachers: teacherToRow, sections: sectionToRow, subjects: 
 
 /* ---- initial load: pull every table into the same `data` shape the rest of the app expects ---- */
 async function loadAllData() {
-  const [teachersRes, sectionsRes, subjectsRes, subjectTeachersRes, studentsRes, gradesRes, adminsRes, settingsRes, logRes] = await Promise.all([
+  const [teachersRes, sectionsRes, subjectsRes, subjectTeachersRes, studentsRes, studentSubjectTeachersRes, studentSubjectExclusionsRes, gradesRes, adminsRes, settingsRes, logRes] = await Promise.all([
     supabaseClient.from("teachers").select("*").order("id"),
     supabaseClient.from("sections").select("*").order("id"),
     supabaseClient.from("subjects").select("*").order("id"),
     supabaseClient.from("subject_teachers").select("*"),
     supabaseClient.from("students").select("*").order("id"),
+    supabaseClient.from("student_subject_teachers").select("*"),
+    supabaseClient.from("student_subject_exclusions").select("*"),
     supabaseClient.from("grades").select("*"),
     supabaseClient.from("admins").select("*").order("id"),
     supabaseClient.from("settings").select("*").maybeSingle(),
     supabaseClient.from("activity_log").select("*").order("happened_at", { ascending: false }).limit(200),
   ]);
 
-  for (const res of [teachersRes, sectionsRes, subjectsRes, subjectTeachersRes, studentsRes, gradesRes, adminsRes, settingsRes, logRes]) {
+  for (const res of [teachersRes, sectionsRes, subjectsRes, subjectTeachersRes, studentsRes, studentSubjectTeachersRes, studentSubjectExclusionsRes, gradesRes, adminsRes, settingsRes, logRes]) {
     if (res.error) console.error("Supabase load error:", res.error);
   }
 
@@ -195,6 +208,14 @@ async function loadAllData() {
     if (subject) subject.teacherIds.push(link.teacher_id);
   });
   data.students = (studentsRes.data || []).map(rowToStudent);
+  (studentSubjectTeachersRes.data || []).forEach(link => {
+    const student = data.students.find(s => s.id === link.student_id);
+    if (student) student.subjectTeachers.push({ subjectId: link.subject_id, teacherId: link.teacher_id });
+  });
+  (studentSubjectExclusionsRes.data || []).forEach(ex => {
+    const student = data.students.find(s => s.id === ex.student_id);
+    if (student) student.excludedSubjectCodes.push(ex.subject_code);
+  });
   (gradesRes.data || []).forEach(g => {
     const student = data.students.find(s => s.id === g.student_id);
     if (student) student.grades[g.subject_id] = { q1: g.q1, q2: g.q2, q3: g.q3, q4: g.q4 };
@@ -219,6 +240,45 @@ async function syncSubjectTeachers(subjectId, teacherIds) {
     const { error } = await supabaseClient.from("subject_teachers").insert(teacherIds.map(teacherId => ({ subject_id: subjectId, teacher_id: teacherId })));
     if (error) console.error(error);
   }
+}
+
+// Per-student subject+teacher assignments — lets a subject teacher who isn't
+// a section adviser still be tied to specific students. `pairs` is
+// [{ subjectId, teacherId }, ...].
+async function syncStudentSubjectTeachers(studentId, pairs) {
+  await supabaseClient.from("student_subject_teachers").delete().eq("student_id", studentId);
+  if (pairs.length) {
+    const { error } = await supabaseClient.from("student_subject_teachers").insert(
+      pairs.map(p => ({ student_id: studentId, subject_id: p.subjectId, teacher_id: p.teacherId }))
+    );
+    if (error) console.error(error);
+  }
+}
+
+// Subject codes a student has been deliberately removed from in the
+// "Subjects & teachers" editor. Stored by code (not subject_id) because a
+// code can have more than one underlying subject record (one per teacher,
+// see subjectCodeById) and the row the student had picked isn't necessarily
+// the one they'll pick if the subject gets re-added later.
+async function syncStudentSubjectExclusions(studentId, excludedCodes) {
+  await supabaseClient.from("student_subject_exclusions").delete().eq("student_id", studentId);
+  if (excludedCodes.length) {
+    const { error } = await supabaseClient.from("student_subject_exclusions").insert(
+      excludedCodes.map(code => ({ student_id: studentId, subject_code: code }))
+    );
+    if (error) console.error(error);
+  }
+}
+
+// All grade-level subject codes minus whichever codes are still represented
+// by a row (kept subjectId) in the pairlist at save time — the rest are what
+// the admin just removed and need to be persisted as exclusions, or this
+// student's whole grade-level subject list just resets back to "everything"
+// the next time the modal opens.
+function subjectExclusionCodesForGrade(gradeLevel, keptSubjectIds) {
+  const keptCodes = new Set(keptSubjectIds.map(id => subjectCodeById(id)).filter(Boolean));
+  const allCodes = new Set(data.subjects.filter(s => s.gradeLevel === gradeLevel).map(s => s.code));
+  return [...allCodes].filter(code => !keptCodes.has(code));
 }
 
 async function createLoginFor(entityKey, recordId, draft) {
@@ -252,6 +312,10 @@ async function persistEntitySave(entityKey, mode, draft) {
       const record = data[entityKey].find(r => r.id === tempId);
       if (record) record.id = inserted.id;
       if (entityKey === "subjects") await syncSubjectTeachers(inserted.id, draft.teacherIds || []);
+      if (entityKey === "students") {
+        await syncStudentSubjectTeachers(inserted.id, draft.subjectTeachers || []);
+        await syncStudentSubjectExclusions(inserted.id, draft.excludedSubjectCodes || []);
+      }
       // The teachers/students tables hold no password — the login lives in
       // auth.users, created server-side where the service_role key is safe.
       if (entityKey === "teachers" || entityKey === "students") {
@@ -262,6 +326,10 @@ async function persistEntitySave(entityKey, mode, draft) {
       const { error } = await supabaseClient.from(table).update(mapper(draft)).eq("id", draft.id);
       if (error) throw error;
       if (entityKey === "subjects") await syncSubjectTeachers(draft.id, draft.teacherIds || []);
+      if (entityKey === "students") {
+        await syncStudentSubjectTeachers(draft.id, draft.subjectTeachers || []);
+        await syncStudentSubjectExclusions(draft.id, draft.excludedSubjectCodes || []);
+      }
     }
   } catch (err) {
     console.error(err);
@@ -363,6 +431,10 @@ const entityConfig = {
       { key: "status", label: "Status", type: "select", options: ["Active", "Inactive"] },
       { key: "username", label: "Username", type: "text" },
       { key: "password", label: "Password", type: "password" },
+      // Subject + teacher pairs, independent of the student's advisory
+      // section — lets a subject teacher with no advisory be assigned to
+      // this student directly. See renderPairlistField() / pairlistRowHtml().
+      { key: "subjectTeachers", label: "Subjects & teachers", type: "pairlist" },
     ],
     columns: (row) => [
       row.studentNo,
@@ -376,10 +448,10 @@ const entityConfig = {
     label: "subject",
     fields: [
       { key: "gradeLevel", label: "Grade level", type: "select", options: () => subjectGradeLevelOptions() },
-      { key: "name", label: "Subject name", type: "select", options: () => subjectNameOptions(), required: true },
-      { key: "code", label: "Subject code", type: "text", required: true, locked: true },
-      { key: "units", label: "Units", type: "number", locked: true },
-      { key: "teacherIds", label: "Teacher assigned", type: "select", options: () => teacherOptions() },
+      { key: "name", label: "Subject name", type: "combo", options: () => subjectNameOptions(), required: true },
+      { key: "code", label: "Subject code", type: "text", required: true },
+      { key: "units", label: "Units", type: "number" },
+      { key: "teacherIds", label: "Teachers assigned", type: "multiselect", options: () => teacherOptions() },
     ],
     columns: (row) => [
       row.code,
@@ -428,6 +500,101 @@ function unassignedTeacherOptions(keepId = null) {
 function sectionOptionsForGrade(gradeLevel) {
   const pool = gradeLevel ? data.sections.filter(s => s.gradeLevel === gradeLevel) : data.sections;
   return [{ value: "", label: "— none —" }, ...pool.map(s => ({ value: s.id, label: s.name }))];
+}
+// Subjects are grade-level-wide (see studentsForSubject()), so a student's
+// subject choices are scoped to their own grade level. Deduped by code: the
+// Subjects page can hold more than one record for the same code (e.g. two
+// "MATH10" entries, one per teacher — see subjectCodeById), but a student
+// only ever picks the subject once, so the dropdown should only list it
+// once too. The value is one representative record's id for that code;
+// which teacher that resolves to is decided by the teacher dropdown, via
+// subjectIdForCodeAndTeacher() at save time.
+function subjectOptionsForGrade(gradeLevel) {
+  const pool = gradeLevel ? data.subjects.filter(s => s.gradeLevel === gradeLevel) : data.subjects;
+  const seenCodes = new Map();
+  pool.forEach(s => { if (!seenCodes.has(s.code)) seenCodes.set(s.code, s); });
+  return [...seenCodes.values()].map(s => ({ value: s.id, code: s.code, label: `${s.code} — ${s.name}` }));
+}
+// Every teacher assigned to ANY subject record sharing this code — not just
+// the one representative record the "Subject" dropdown happens to point at
+// — since the whole point of deduping the subject list by code is to still
+// offer every teacher across those records as a choice.
+function teacherIdsForCode(code) {
+  const ids = new Set();
+  data.subjects.filter(s => s.code === code).forEach(s => (s.teacherIds || []).forEach(id => ids.add(id)));
+  return [...ids];
+}
+// The concrete subject record that actually backs a (code, teacher) pair —
+// resolves the deduped "Subject" dropdown's representative id back down to
+// whichever real record the chosen teacher belongs to, so the saved
+// subject_id is correct even though the dropdown only shows one row per code.
+function subjectIdForCodeAndTeacher(code, teacherId) {
+  const match = data.subjects.find(s => s.code === code && (s.teacherIds || []).includes(Number(teacherId)));
+  return match ? match.id : null;
+}
+// Teachers already on that subject's load (Subjects page "Teacher assigned"
+// checklist) — a student's per-subject teacher must come from this pool.
+function teachersForSubject(subjectId) {
+  const subject = data.subjects.find(s => s.id === Number(subjectId));
+  return subject ? (subject.teacherIds || []) : [];
+}
+// The Subjects page can hold more than one record with the same code/name
+// (e.g. two "MATH10" entries, one per teacher) — this is what makes two
+// subject records the "same kind" for the pairlist's one-per-subject rule.
+function subjectCodeById(subjectId) {
+  const subject = data.subjects.find(s => s.id === Number(subjectId));
+  return subject ? subject.code : null;
+}
+// The teacher actually assigned to teach `student` for this specific subject
+// *record* — the student's own "Subjects & teachers" override for this exact
+// record if one exists, else the same resolution defaultTeacherIdForStudentSubject
+// uses to display a teacher name elsewhere: unambiguous if the record only
+// has one teacher, or the student's section adviser if they're one of
+// several co-teachers on it. Returns null when it's still ambiguous (more
+// than one co-teacher, no override, adviser isn't one of them) — that's the
+// case we must NOT guess on, or a student ends up showing in every
+// co-teacher's list instead of just the one they're actually assigned to.
+function resolvedTeacherIdForStudentSubject(student, subject) {
+  const specific = (student.subjectTeachers || []).find(p => p.subjectId === subject.id);
+  if (specific) return specific.teacherId;
+  return defaultTeacherIdForStudentSubject(student, subject.id);
+}
+
+/* ---- student "Subjects & teachers" pairlist: render helpers ----
+   A student should end up with at most one row per subject *kind* (by code)
+   — the same subject can't have two teachers assigned to the same student —
+   but that's enforced at save time (see the "Unable to save..." toast in the
+   submit handler), not by hiding the option here: an admin can pick the same
+   subject in two rows, and only finds out it's rejected when they hit Save,
+   so the warning is something they actually see rather than a silently
+   missing dropdown option. */
+function pairlistRowHtml(index, gradeLevel, subjectId, teacherId, disabled) {
+  const code = subjectId ? subjectCodeById(subjectId) : null;
+  const subjectOptionsHtml = subjectOptionsForGrade(gradeLevel).map(o =>
+    `<option value="${o.value}" ${o.code === code ? "selected" : ""}>${o.label}</option>`
+  ).join("");
+
+  const teacherIds = code ? teacherIdsForCode(code) : [];
+  const teacherOptionsHtml = teacherIds
+    .map(tid => `<option value="${tid}" ${String(tid) === String(teacherId) ? "selected" : ""}>${teacherName(tid)}</option>`)
+    .join("");
+
+  return `<div class="pairlist-row" data-row-index="${index}">
+      <select class="pairlist-subject" data-row-subject ${disabled ? "disabled" : ""}>
+        <option value="">— Subject —</option>${subjectOptionsHtml}
+      </select>
+      <select class="pairlist-teacher" data-row-teacher ${disabled || !subjectId ? "disabled" : ""}>
+        <option value="">${teacherIds.length ? "— Teacher —" : "No teachers on this subject"}</option>${teacherOptionsHtml}
+      </select>
+      ${disabled ? "" : `<button type="button" class="btn-tiny btn-danger" data-row-remove="${index}" aria-label="Remove">&times;</button>`}
+    </div>`;
+}
+function renderPairlistField(key, rows, gradeLevel, disabled) {
+  const body = rows.length
+    ? rows.map((r, idx) => pairlistRowHtml(idx, gradeLevel, r.subjectId, r.teacherId, disabled)).join("")
+    : `<p class="pairlist-empty">${disabled ? "No subjects assigned." : "No subjects assigned yet."}</p>`;
+  const addBtn = disabled ? "" : `<button type="button" class="btn-tiny" data-pairlist-add="${key}">+ Add subject &amp; teacher</button>`;
+  return `<div class="pairlist" data-key="${key}">${body}</div>${addBtn}`;
 }
 function buildFullName(firstName, middleName, lastName) {
   const first = (firstName || "").trim();
@@ -499,6 +666,94 @@ function teacherName(id) {
 function teacherNames(ids) {
   if (!ids || ids.length === 0) return "—";
   return ids.map(id => teacherName(id)).join(", ");
+}
+// Teacher to show a student for one of their subjects: prefer whichever
+// teacher was explicitly assigned to this student for that subject (the
+// "Subjects & teachers" box on the student's edit form — at most one per
+// subject). Otherwise fall back to the subject's general teacher list: if
+// only one teacher is on it, that's unambiguous; if several are, but the
+// student's own section adviser is one of them, the adviser is the one
+// teaching this student's section, so show them. Only truly ambiguous cases
+// (several teachers, none of them the adviser) show as unassigned.
+function subjectTeacherNamesForStudent(student, subjectId) {
+  const specific = (student.subjectTeachers || []).find(p => p.subjectId === subjectId);
+  if (specific) return teacherName(specific.teacherId);
+
+  const id = defaultTeacherIdForStudentSubject(student, subjectId);
+  return id != null ? teacherName(id) : "Not yet assigned";
+}
+// Same resolution as subjectTeacherNamesForStudent, minus the name lookup —
+// used to prefill the "Subjects & teachers" editor with an id rather than a
+// display string.
+function defaultTeacherIdForStudentSubject(student, subjectId) {
+  const subject = data.subjects.find(s => s.id === subjectId);
+  const ids = subject ? subject.teacherIds : [];
+  if (!ids || ids.length === 0) return null;
+  if (ids.length === 1) return ids[0];
+
+  const section = student.sectionId ? data.sections.find(sec => sec.id === student.sectionId) : null;
+  if (section && section.adviserId != null && ids.includes(section.adviserId)) {
+    return section.adviserId;
+  }
+  return null;
+}
+// One row per subject *kind* (by code) within a student's grade level. The
+// Subjects page can legitimately hold more than one record sharing a code
+// (e.g. two "MATH10" entries, one per teacher — see subjectCodeById), but a
+// given student should only ever see/be graded on a single row per code, not
+// one row per underlying record. Prefers whichever specific record the
+// student's own "Subjects & teachers" assignment points to for that code;
+// otherwise falls back to the first record of that code so every code still
+// gets exactly one row.
+function subjectRowsForStudent(student) {
+  const excluded = new Set(student.excludedSubjectCodes || []);
+  const gradeSubjects = data.subjects.filter(s => s.gradeLevel === student.gradeLevel && !excluded.has(s.code));
+  const byCode = new Map();
+  gradeSubjects.forEach(s => {
+    if (!byCode.has(s.code)) byCode.set(s.code, []);
+    byCode.get(s.code).push(s);
+  });
+  const assignedIdByCode = new Map(
+    (student.subjectTeachers || []).map(p => [subjectCodeById(p.subjectId), p.subjectId])
+  );
+  const rows = [];
+  byCode.forEach((records, code) => {
+    const preferredId = assignedIdByCode.get(code);
+    const chosen = (preferredId != null && records.find(r => r.id === preferredId)) || records[0];
+    rows.push(chosen);
+  });
+  return rows.sort((a, b) => a.code.localeCompare(b.code));
+}
+// Grades for a subject code, merged across every record sharing that code —
+// so a grade entered back when duplicate records were still showing as
+// separate rows isn't lost once the display collapses them into one.
+function mergedGradesForCode(student, records) {
+  const g = {};
+  records.forEach(r => {
+    const rg = (student.grades && student.grades[r.id]) || {};
+    ["q1", "q2", "q3", "q4"].forEach(q => {
+      if (g[q] == null && rg[q] != null) g[q] = rg[q];
+    });
+  });
+  return g;
+}
+// Prefills the "Subjects & teachers" editor on the student modal with every
+// subject in the student's grade level, not just the ones that already have
+// an explicit per-student override — otherwise a student taking a full course
+// load with no manual overrides yet shows as "No subjects assigned yet.",
+// which reads as if nothing is assigned when everything just hasn't needed a
+// manual teacher override. Each row's teacher is the student's own override
+// if one exists, else the same single-teacher/adviser fallback used
+// elsewhere (subjectTeacherNamesForStudent) — left blank only when that's
+// genuinely ambiguous, for the admin to resolve.
+function initialPairRowsForStudent(row) {
+  if (!row) return [];
+  const overrideBySubjectId = new Map((row.subjectTeachers || []).map(p => [p.subjectId, p.teacherId]));
+  return subjectRowsForStudent(row).map(s => {
+    const overrideTeacherId = overrideBySubjectId.get(s.id);
+    const teacherId = overrideTeacherId != null ? overrideTeacherId : defaultTeacherIdForStudentSubject(row, s.id);
+    return { subjectId: s.id, teacherId: teacherId != null ? teacherId : "" };
+  });
 }
 function sectionName(id) {
   const s = data.sections.find(s => s.id == id);
@@ -596,14 +851,17 @@ function computeFinalRating(grades) {
 function computeGeneralAverage(student) {
   // Only count subjects currently assigned to this student's grade level —
   // stale/orphaned entries in student.grades (e.g. from a subject that was
-  // removed or a past grade level) must not block the average forever.
-  const currentSubjectIds = data.subjects
-    .filter(su => su.gradeLevel === student.gradeLevel)
-    .map(su => String(su.id));
+  // removed or a past grade level) must not block the average forever. One
+  // entry per subject code (see subjectRowsForStudent) — the Subjects page
+  // can hold more than one record sharing a code, and counting each record
+  // separately would both double-weight that subject and, if only one of the
+  // duplicates has grades, leave the average stuck on "Pending" forever.
+  const codeRows = subjectRowsForStudent(student);
+  const allByCode = data.subjects.filter(su => su.gradeLevel === student.gradeLevel);
 
-  const finals = currentSubjectIds
-    .map(id => student.grades && student.grades[id])
-    .map(g => computeFinalRating(g || {}));
+  const finals = codeRows
+    .map(subject => mergedGradesForCode(student, allByCode.filter(r => r.code === subject.code)))
+    .map(g => computeFinalRating(g));
 
   if (finals.length === 0 || finals.some(f => f === null)) return null;
   const avg = finals.reduce((a, b) => a + b, 0) / finals.length;
@@ -849,7 +1107,10 @@ function buildRowActions(entityKey, row) {
     // except a Principal/Vice Principal, who gets it for every student —
     // getFilteredStudents() already keeps other sections off the table for a regular
     // teacher, but this is a second gate in case a row ever gets rendered from elsewhere.
-    const canOpenGrades = role !== "teacher" || hasFullGradesAccess() || isSectionAdviser(row.sectionId);
+    // The grading card sheet icon is hidden from teacher logins, except the
+    // Principal and Vice Principal (hasFullGradesAccess). Admin accounts
+    // still get it too.
+    const canOpenGrades = role !== "teacher" || hasFullGradesAccess();
     if (canOpenGrades) {
       parts.push(`<button class="icon-btn icon-btn--grades" data-grades="${row.id}" title="Grading card sheet" aria-label="Grading card sheet">${ROW_ICONS.grades}</button>`);
     }
@@ -908,11 +1169,34 @@ function getFilteredStudents() {
   const term = studentFilter.term.trim().toLowerCase();
   const role = currentUser ? currentUser.role : "admin";
   // Teachers only ever see students in the section(s) they're the adviser of,
-  // except a Principal/Vice Principal, who — like an admin — sees everyone.
-  // (Students never reach this table — they use the portal.)
-  const scoped = role === "teacher" && !hasFullGradesAccess()
-    ? data.students.filter(s => isSectionAdviser(s.sectionId))
-    : data.students;
+  // plus every student actually resolved to THIS teacher on a subject record
+  // they're on (see resolvedTeacherIdForStudentSubject) — not just any
+  // student taking that subject somewhere in the grade level. That matters
+  // whenever a subject record has more than one co-teacher (e.g. ENG10
+  // taught jointly by two teachers): a student explicitly assigned to one of
+  // them must not also show up for the other. This is what lets a teacher
+  // with no advisory of their own, only a subject load, still see just the
+  // students they actually teach.
+  // Principal/Vice Principal (hasFullGradesAccess), like an admin, see
+  // everyone. (Students never reach this table — they use the portal.)
+  let scoped = data.students;
+  if (role === "teacher" && !hasFullGradesAccess()) {
+    const taughtByGrade = new Map(); // gradeLevel -> subject records this teacher is on
+    data.subjects.filter(su => (su.teacherIds || []).includes(currentUser.teacherId)).forEach(su => {
+      if (!taughtByGrade.has(su.gradeLevel)) taughtByGrade.set(su.gradeLevel, []);
+      taughtByGrade.get(su.gradeLevel).push(su);
+    });
+    const visible = new Map();
+    data.students.forEach(s => {
+      const taught = taughtByGrade.get(s.gradeLevel) || [];
+      const excluded = new Set(s.excludedSubjectCodes || []);
+      const takesATaughtSubject = taught.some(su =>
+        !excluded.has(su.code) && resolvedTeacherIdForStudentSubject(s, su) === currentUser.teacherId
+      );
+      if (isSectionAdviser(s.sectionId) || takesATaughtSubject) visible.set(s.id, s);
+    });
+    scoped = [...visible.values()];
+  }
   return scoped.filter(s => {
     const matchesTerm = !term || (studentFilter.field === "studentNo" ? s.studentNo : s.name).toLowerCase().includes(term);
     const matchesGrade = studentFilter.gradeLevel === "all" || s.gradeLevel === studentFilter.gradeLevel;
@@ -974,15 +1258,28 @@ function activateNavPage(pageName) {
   // and Vice Principal positions (hasFullGradesAccess) — their nav buttons
   // are already hidden/shown to match, but that alone doesn't stop someone
   // from calling activateNavPage(...) directly (e.g. devtools), so this is
-  // the real gate.
+  // the real gate. Every one of these falls back to "students" rather than
+  // "home", since Dashboard/home is itself off-limits to teachers (below).
   if (currentUser && currentUser.role === "teacher" && pageName === "settings") {
-    pageName = "home";
+    pageName = "students";
   }
   if (currentUser && currentUser.role === "teacher" && pageName === "studentsAccount") {
-    pageName = "home";
+    pageName = "students";
   }
   if (currentUser && currentUser.role === "teacher" && pageName === "teachers" && !hasFullGradesAccess()) {
-    pageName = "home";
+    pageName = "students";
+  }
+  // Subjects and Sections are hidden from teacher logins too, except the
+  // Principal and Vice Principal (hasFullGradesAccess) — same hard stop as
+  // above, in case navigation is triggered from somewhere other than the nav
+  // buttons.
+  if (currentUser && currentUser.role === "teacher" && !hasFullGradesAccess() && (pageName === "subjects" || pageName === "sections")) {
+    pageName = "students";
+  }
+  // Dashboard/home is admin-only — no teacher login, Principal/Vice Principal
+  // included, ever lands there. Same hard-stop pattern as the rules above.
+  if (currentUser && currentUser.role === "teacher" && pageName === "home") {
+    pageName = "students";
   }
   document.querySelectorAll(".nav-item").forEach(b => b.classList.remove("is-active"));
   document.querySelectorAll(".page").forEach(p => p.classList.remove("is-active"));
@@ -1035,13 +1332,18 @@ function applyRoleRestrictions() {
   if (currentUser.role === "teacher") {
     const teacher = data.teachers.find(t => t.id === currentUser.teacherId);
     const perms = teacher && teacher.permissions ? teacher.permissions : DEFAULT_TEACHER_PERMISSIONS;
-    // Admin Settings and Students Account are always admin-only — no
-    // teacher login, including Principal/Vice Principal, ever sees them.
+    // Admin Settings, Students Account, and Dashboard are always admin-only —
+    // no teacher login, including Principal/Vice Principal, ever sees them.
+    homeNav.hidden = true;
     settingsNav.hidden = true;
     studentsAccountNav.hidden = true;
     // Teachers is hidden from every teacher login except the Principal and
     // Vice Principal positions, who see it.
     const seesAdminNav = hasFullGradesAccess();
+    // Subjects and Sections are hidden from every other teacher login; the
+    // Principal and Vice Principal keep them.
+    subjectsNav.hidden = !seesAdminNav;
+    sectionsNav.hidden = !seesAdminNav;
     document.querySelectorAll("[data-add]").forEach(btn => { btn.hidden = true; });
 
     setHomeGreeting((teacher && teacher.position) || "Teacher");
@@ -1064,6 +1366,15 @@ function applyRoleRestrictions() {
     if (portalNav) {
       portalNav.hidden = !perms.teachersPortalAccess;
       if (perms.teachersPortalAccess) renderTeacherPortal();
+    }
+    // The page defaults to "home" (Dashboard) in the HTML, which teachers
+    // never see. Only redirect off of it — applyRoleRestrictions() re-runs
+    // after unrelated actions (e.g. a full-access teacher toggling another
+    // teacher's permissions), and re-navigating every time would yank them
+    // off whatever page they're actually on.
+    const activePage = document.querySelector(".page.is-active");
+    if (!activePage || activePage.id === "page-home") {
+      activateNavPage("students");
     }
     return;
   }
@@ -1101,9 +1412,17 @@ function renderTeacherPortal() {
   const subjectsTbody = document.querySelector("#portalSubjectsTable tbody");
   const subjectsEmpty = document.getElementById("portalSubjectsEmpty");
   const taught = data.subjects.filter(s => s.teacherIds.includes(teacher.id));
+  // The edit-grades icon at the end of each subject only shows for regular
+  // teachers — never the Principal or Vice Principal.
+  const canEditGrades = canEditGradesFromPortal();
+  document.querySelector("#portalSubjectsTable thead tr").innerHTML =
+    `<th>Code</th><th>Subject</th><th>Units</th>${canEditGrades ? "<th></th>" : ""}`;
   if (taught.length) {
     subjectsEmpty.hidden = true;
-    subjectsTbody.innerHTML = taught.map(s => `<tr><td>${s.code}</td><td>${s.name}</td><td>${s.units}</td></tr>`).join("");
+    subjectsTbody.innerHTML = taught.map(s => `<tr>
+      <td>${s.code}</td><td>${s.name}</td><td>${s.units}</td>
+      ${canEditGrades ? `<td class="row-actions"><button type="button" class="icon-btn icon-btn--grades" data-portal-grades="${s.id}" title="Edit grades" aria-label="Edit grades for ${s.code}">${ROW_ICONS.grades}</button></td>` : ""}
+    </tr>`).join("");
   } else {
     subjectsEmpty.textContent = "No subjects assigned to you yet.";
     subjectsEmpty.hidden = false;
@@ -1130,16 +1449,21 @@ function renderStudentPortal() {
 
   // Subjects are assigned per grade level (every section within a grade shares
   // the same subject list), so a student's own gradeLevel is what scopes both
-  // their subject list and which of their grade records are shown here.
-  const gradeSubjects = data.subjects.filter(s => s.gradeLevel === student.gradeLevel);
-  const gradeSubjectIds = new Set(gradeSubjects.map(s => s.id));
+  // their subject list and which of their grade records are shown here. One
+  // row per subject code (see subjectRowsForStudent) — the Subjects page can
+  // hold more than one record sharing a code, but a student should never see
+  // the same subject listed twice.
+  const gradeSubjects = subjectRowsForStudent(student);
 
+  document.querySelector("#portalSubjectsTable thead tr").innerHTML = "<th>Code</th><th>Subject</th><th>Units</th><th>Teacher</th>";
   const subjectsTbody = document.querySelector("#portalSubjectsTable tbody");
   const subjectsEmpty = document.getElementById("portalSubjectsEmpty");
   subjectsEmpty.textContent = "Subject visibility is currently turned off for your account. Ask an admin to enable it.";
   if (student.permissions.studentsViewSubjects && gradeSubjects.length) {
     subjectsEmpty.hidden = true;
-    subjectsTbody.innerHTML = gradeSubjects.map(s => `<tr><td>${s.code}</td><td>${s.name}</td><td>${s.units}</td></tr>`).join("");
+    subjectsTbody.innerHTML = gradeSubjects.map(s =>
+      `<tr><td>${s.code}</td><td>${s.name}</td><td>${s.units}</td><td>${subjectTeacherNamesForStudent(student, s.id)}</td></tr>`
+    ).join("");
   } else {
     subjectsEmpty.hidden = false;
     subjectsTbody.innerHTML = "";
@@ -1147,16 +1471,18 @@ function renderStudentPortal() {
 
   const gradesTbody = document.querySelector("#portalGradesTable tbody");
   const gradesEmpty = document.getElementById("portalGradesEmpty");
-  const subjectIds = Object.keys(student.grades || {}).filter(idStr => gradeSubjectIds.has(Number(idStr)));
-  if (student.permissions.studentsViewGradingCard && subjectIds.length) {
+  const gradeRowsByCode = data.subjects.filter(s => s.gradeLevel === student.gradeLevel);
+  // Same subject list as "My subjects" above (gradeSubjects) — a subject
+  // with no grades posted yet still gets a row here, just with "Pending" in
+  // each ungraded cell (see fmtGrade), instead of disappearing from the
+  // table entirely until a teacher enters something.
+  if (student.permissions.studentsViewGradingCard && gradeSubjects.length) {
     gradesEmpty.hidden = true;
-    gradesTbody.innerHTML = subjectIds.map(idStr => {
-      const subjectId = Number(idStr);
-      const subject = data.subjects.find(s => s.id === subjectId);
-      const g = student.grades[idStr];
+    gradesTbody.innerHTML = gradeSubjects.map(subject => {
+      const g = mergedGradesForCode(student, gradeRowsByCode.filter(r => r.code === subject.code));
       const final = computeFinalRating(g);
       return `<tr>
-        <td>${subject ? `${subject.code} — ${subject.name}` : "Subject"}</td>
+        <td>${subject.code} — ${subject.name}</td>
         <td>${fmtGrade(g.q1)}</td><td>${fmtGrade(g.q2)}</td><td>${fmtGrade(g.q3)}</td><td>${fmtGrade(g.q4)}</td>
         <td>${fmtGrade(final)}</td>
       </tr>`;
@@ -1211,16 +1537,18 @@ function openModal(entityKey, mode, id = null) {
 
   modalFields.innerHTML = "";
 
-  const blankSubjectEdit = entityKey === "subjects" && mode === "edit";
-
   config.fields.forEach(field => {
     const wrap = document.createElement("label");
-    wrap.className = field.type === "multiselect" ? "field field--full" : "field";
+    wrap.className = (field.type === "multiselect" || field.type === "pairlist") ? "field field--full" : "field";
     wrap.dataset.fieldKey = field.key;
-    const value = blankSubjectEdit
-      ? (field.type === "multiselect" ? [] : "")
-      : field.type === "multiselect" ? (row ? (row[field.key] || []) : []) : (row ? row[field.key] ?? "" : "");
-    const disabled = (mode === "view" || field.locked) ? "disabled" : "";
+    const value = field.type === "multiselect" ? (row ? (row[field.key] || []) : [])
+      : field.type === "pairlist" ? (row ? initialPairRowsForStudent(row) : [])
+      : (row ? row[field.key] ?? "" : "");
+    // Subject & teacher assignment is admin-only — a teacher editing their own
+    // advisee (canEdit in buildRowActions) still can't touch this pairlist,
+    // same standing as Subjects being admin-only elsewhere in this app.
+    const roleLocksField = field.key === "subjectTeachers" && (!currentUser || currentUser.role !== "admin");
+    const disabled = (mode === "view" || field.locked || roleLocksField) ? "disabled" : "";
 
     let inputHtml;
     if (field.type === "multiselect") {
@@ -1233,11 +1561,22 @@ function openModal(entityKey, mode, id = null) {
             <span>${o.label}</span>
           </label>`).join("") +
         `</div>`;
+    } else if (field.type === "pairlist") {
+      const gradeSelectEl = modalFields.querySelector('[data-key="gradeLevel"]');
+      const gradeLevel = gradeSelectEl ? gradeSelectEl.value : (row ? row.gradeLevel : "");
+      inputHtml = renderPairlistField(field.key, value, gradeLevel, disabled);
     } else if (field.type === "select") {
       const opts = typeof field.options === "function" ? field.options() : field.options.map(o => ({ value: o, label: o }));
       inputHtml = `<select data-key="${field.key}" ${disabled}>` +
         opts.map(o => `<option value="${o.value}" ${String(o.value) === String(value) ? "selected" : ""}>${o.label}</option>`).join("") +
         `</select>`;
+    } else if (field.type === "combo") {
+      // Like a select, but typing a value that isn't in the list is
+      // allowed — used for "pick an existing subject, or type a new one".
+      const opts = typeof field.options === "function" ? field.options() : field.options.map(o => ({ value: o, label: o }));
+      const listId = `${field.key}-list`;
+      inputHtml = `<input type="text" data-key="${field.key}" value="${value}" list="${listId}" ${field.required ? "required" : ""} ${disabled} autocomplete="off">` +
+        `<datalist id="${listId}">${opts.filter(o => o.value !== "").map(o => `<option value="${o.label}"></option>`).join("")}</datalist>`;
     } else if (field.type === "password") {
       inputHtml = `<div class="field-with-action">
           <input type="text" data-key="${field.key}" value="${value}" ${disabled} autocomplete="off">
@@ -1269,37 +1608,84 @@ function openModal(entityKey, mode, id = null) {
 
   if (entityKey === "subjects" && mode !== "view") {
     const gradeSelect = modalFields.querySelector('[data-key="gradeLevel"]');
-    const nameSelect = modalFields.querySelector('[data-key="name"]');
+    const nameInput = modalFields.querySelector('[data-key="name"]');
     const codeInput = modalFields.querySelector('[data-key="code"]');
     const unitsInput = modalFields.querySelector('[data-key="units"]');
-    const teacherSelect = modalFields.querySelector('[data-key="teacherIds"]');
+    const teacherList = modalFields.querySelector('[data-key="teacherIds"]');
+
+    function renderTeacherCheckboxes(opts, selectedIds) {
+      const selected = (selectedIds || []).map(String);
+      teacherList.innerHTML = opts.filter(o => o.value !== "").map(o => `
+          <label class="checkbox-option">
+            <input type="checkbox" value="${o.value}" ${selected.includes(String(o.value)) ? "checked" : ""}>
+            <span>${o.label}</span>
+          </label>`).join("") || `<p class="pairlist-empty">No teachers available.</p>`;
+    }
 
     function clearDerivedFields() {
       codeInput.value = "";
       unitsInput.value = "";
-      teacherSelect.value = "";
+      renderTeacherCheckboxes(teacherOptions(), []);
+    }
+
+    // Typing/picking a name that matches an existing subject inherits its
+    // code & units and locks them, so an admin can't create a second
+    // subject with the same name but a mismatched code. A name that
+    // doesn't match anything is a brand-new subject — nothing to inherit,
+    // so code & units unlock for manual entry. The teacher checkboxes
+    // rebuild too: on Add, only teachers not already on that subject name
+    // are offered (adding more teachers to an existing row happens by
+    // editing that row directly, not by creating a parallel one); on Edit,
+    // the full roster is offered, pre-checked with whichever teachers are
+    // on the matched row.
+    function syncDerivedFields() {
+      const defaults = subjectDefaultsForName(nameInput.value.trim());
+      if (!defaults) {
+        clearDerivedFields();
+        codeInput.disabled = false;
+        unitsInput.disabled = false;
+        return;
+      }
+      codeInput.value = defaults.code;
+      unitsInput.value = defaults.units;
+      codeInput.disabled = true;
+      unitsInput.disabled = true;
+      gradeSelect.value = defaults.gradeLevel;
+      if (mode === "add") {
+        renderTeacherCheckboxes(availableTeacherOptionsForSubject(nameInput.value.trim()), []);
+      } else {
+        renderTeacherCheckboxes(teacherOptions(), defaults.teacherIds || []);
+      }
+    }
+
+    // Nothing typed yet at open — lock code/units until a name is entered,
+    // same as the "existing subject" state, rather than leaving them open
+    // for input that has no subject to attach to.
+    codeInput.disabled = true;
+    unitsInput.disabled = true;
+
+    // On Edit, start the checkbox list from this row's own teachers rather
+    // than blank — the row's actual assignment (potentially more than one
+    // teacher) should be what an admin sees and adjusts, not a clean slate
+    // that silently drops every teacher already on it if left untouched.
+    // Teachers already on a *different* row sharing this subject's name are
+    // left off the list (see availableTeacherOptionsForSubject) so adding a
+    // teacher here can't collide with a parallel row.
+    if (mode === "edit" && row) {
+      renderTeacherCheckboxes(availableTeacherOptionsForSubject(row.name, row.id), row.teacherIds || []);
     }
 
     gradeSelect.addEventListener("change", () => {
       const opts = subjectNameOptions(gradeSelect.value || null);
-      nameSelect.innerHTML = opts.map(o => `<option value="${o.value}">${o.label}</option>`).join("");
+      const listEl = modalFields.querySelector("#name-list");
+      if (listEl) listEl.innerHTML = opts.filter(o => o.value !== "").map(o => `<option value="${o.label}"></option>`).join("");
+      nameInput.value = "";
       clearDerivedFields();
+      codeInput.disabled = true;
+      unitsInput.disabled = true;
     });
 
-    nameSelect.addEventListener("change", () => {
-      const defaults = subjectDefaultsForName(nameSelect.value);
-      if (!defaults) { clearDerivedFields(); return; }
-      codeInput.value = defaults.code;
-      unitsInput.value = defaults.units;
-      gradeSelect.value = defaults.gradeLevel;
-      if (mode === "add") {
-        const opts = availableTeacherOptionsForSubject(nameSelect.value);
-        teacherSelect.innerHTML = opts.map(o => `<option value="${o.value}">${o.label}</option>`).join("");
-        teacherSelect.value = "";
-      } else {
-        teacherSelect.value = (defaults.teacherIds && defaults.teacherIds[0] != null) ? String(defaults.teacherIds[0]) : "";
-      }
-    });
+    nameInput.addEventListener("input", syncDerivedFields);
   }
 
   if (entityKey === "sections" && mode !== "view") {
@@ -1408,6 +1794,54 @@ function openModal(entityKey, mode, id = null) {
         sectionSelect.disabled = true;
       }
     }
+
+    // ---- "Subjects & teachers" pairlist: add/remove rows, keep the teacher
+    // choices in step with whichever subject that row currently has picked ----
+    const pairlistContainer = modalFields.querySelector('[data-key="subjectTeachers"]');
+    const pairlistAddBtn = modalFields.querySelector('[data-pairlist-add="subjectTeachers"]');
+    let pairRows = initialPairRowsForStudent(row);
+
+    function renderPairlistRows() {
+      const gl = gradeSelect.value || (row ? row.gradeLevel : "");
+      pairlistContainer.innerHTML = pairRows.length
+        ? pairRows.map((r, idx) => pairlistRowHtml(idx, gl, r.subjectId, r.teacherId, "")).join("")
+        : `<p class="pairlist-empty">No subjects assigned yet.</p>`;
+    }
+
+    if (pairlistContainer && pairlistAddBtn) {
+      pairlistAddBtn.addEventListener("click", () => {
+        pairRows.push({ subjectId: "", teacherId: "" });
+        renderPairlistRows();
+      });
+
+      pairlistContainer.addEventListener("change", (e) => {
+        const rowEl = e.target.closest("[data-row-index]");
+        if (!rowEl) return;
+        const idx = Number(rowEl.dataset.rowIndex);
+        if (!pairRows[idx]) return;
+        if (e.target.matches("[data-row-subject]")) {
+          pairRows[idx].subjectId = e.target.value;
+          pairRows[idx].teacherId = ""; // a new subject invalidates the old teacher pick
+          renderPairlistRows();
+        } else if (e.target.matches("[data-row-teacher]")) {
+          pairRows[idx].teacherId = e.target.value;
+        }
+      });
+
+      pairlistContainer.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-row-remove]");
+        if (!btn) return;
+        pairRows.splice(Number(btn.dataset.rowRemove), 1);
+        renderPairlistRows();
+      });
+
+      // Subjects are grade-level-wide, so switching grade invalidates any
+      // subjects already picked here.
+      gradeSelect.addEventListener("change", () => {
+        pairRows = [];
+        renderPairlistRows();
+      });
+    }
   }
 }
 
@@ -1431,12 +1865,9 @@ modalForm.addEventListener("submit", (e) => {
       draft[field.key] = Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb => Number(cb.value));
       return;
     }
+    if (field.type === "pairlist") return; // collected separately below, from the row selects
     const input = modalFields.querySelector(`[data-key="${field.key}"]`);
     let value = input.value;
-    if (entityKey === "subjects" && field.key === "teacherIds") {
-      draft.teacherIds = value !== "" ? [Number(value)] : [];
-      return;
-    }
     if (field.type === "number") value = Number(value);
     // Blank select on an *Id field means "none chosen" — must be null, not
     // "". Sending "" to a bigint column (adviser_id, section_id, ...) makes
@@ -1470,6 +1901,50 @@ modalForm.addEventListener("submit", (e) => {
   if (entityKey === "students") {
     draft.name = buildFullName(draft.firstName, draft.middleName, draft.lastName);
 
+    const pairlistContainer = modalFields.querySelector('[data-key="subjectTeachers"]');
+    const pairlistRowEls = pairlistContainer ? Array.from(pairlistContainer.querySelectorAll(".pairlist-row")) : [];
+    draft.subjectTeachers = pairlistContainer
+      ? pairlistRowEls
+          .map(rowEl => {
+            const pickedSubjectId = rowEl.querySelector("[data-row-subject]").value;
+            const teacherId = rowEl.querySelector("[data-row-teacher]").value;
+            // The dropdown only shows one option per subject code, so its
+            // value is just a representative record — resolve to the actual
+            // record backing the (code, teacher) pair the admin picked.
+            const code = pickedSubjectId ? subjectCodeById(pickedSubjectId) : null;
+            const resolvedSubjectId = code && teacherId ? subjectIdForCodeAndTeacher(code, teacherId) : null;
+            return { subjectId: resolvedSubjectId != null ? resolvedSubjectId : pickedSubjectId, teacherId };
+          })
+          .filter(p => p.subjectId && p.teacherId)
+          .map(p => ({ subjectId: Number(p.subjectId), teacherId: Number(p.teacherId) }))
+      : (existingRecord ? existingRecord.subjectTeachers : []);
+    // A row can be "kept" (still in the list) with no teacher chosen yet —
+    // that's not the same as being removed, so exclusion is based on which
+    // rows are still present, not on which rows ended up in subjectTeachers.
+    draft.excludedSubjectCodes = pairlistContainer
+      ? subjectExclusionCodesForGrade(
+          draft.gradeLevel,
+          pairlistRowEls.map(rowEl => rowEl.querySelector("[data-row-subject]").value).filter(Boolean).map(Number)
+        )
+      : (existingRecord ? existingRecord.excludedSubjectCodes : []);
+    // The UI already keeps a subject kind from being picked twice, but as a
+    // hard stop in case one slips through, block the save entirely instead of
+    // silently dropping the extra row — the person needs to know why.
+    if (draft.subjectTeachers) {
+      const seenCodes = new Set();
+      const hasDuplicateSubject = draft.subjectTeachers.some(p => {
+        const code = subjectCodeById(p.subjectId) ?? p.subjectId;
+        if (seenCodes.has(code)) return true;
+        seenCodes.add(code);
+        return false;
+      });
+      if (hasDuplicateSubject) {
+        showToast("Unable to save student already have subject load", "error");
+        modalSubmit.disabled = false;
+        return;
+      }
+    }
+
     const duplicate = data.students.find(s => s.id !== draft.id && isDuplicateStudent(s, draft));
     if (duplicate) {
       showToast("An existing student information already exist.", "error");
@@ -1484,14 +1959,15 @@ modalForm.addEventListener("submit", (e) => {
   }
 
   if (entityKey === "subjects") {
-    const newTeacherId = (draft.teacherIds && draft.teacherIds[0] != null) ? draft.teacherIds[0] : null;
-    const duplicateSubject = data.subjects.find(s => {
-      if (s.id === draft.id || s.code !== draft.code) return false;
-      const existingTeacherId = (s.teacherIds && s.teacherIds[0] != null) ? s.teacherIds[0] : null;
-      return existingTeacherId === newTeacherId;
-    });
-    if (duplicateSubject) {
-      showToast("This subject is already assigned to that teacher.", "error");
+    // A given teacher shouldn't end up on two different rows sharing the
+    // same code — that's what "assign more teachers on this row" (the
+    // checkbox list above) is for. Flag the first overlap found so the
+    // toast can name exactly who's already on it.
+    const overlappingTeacherId = (draft.teacherIds || []).find(tid =>
+      data.subjects.some(s => s.id !== draft.id && s.code === draft.code && (s.teacherIds || []).includes(tid))
+    );
+    if (overlappingTeacherId != null) {
+      showToast(`${teacherName(overlappingTeacherId)} is already assigned to this subject.`, "error");
       modalSubmit.disabled = false;
       return;
     }
@@ -1648,13 +2124,7 @@ function normalizeGradeLevel(g) {
 
 function renderLoadModal() {
   const assigned = data.subjects.filter(s => (s.teacherIds || []).includes(currentLoadTeacherId));
-  // A teacher can only be given a subject load from the grade level they
-  // advise — e.g. a Grade 7 adviser only sees Grade 7 subjects to add.
-  const advisoryGrade = teacherAdvisoryGradeLevel(currentLoadTeacherId);
-  const unassigned = data.subjects.filter(s =>
-    !(s.teacherIds || []).includes(currentLoadTeacherId) &&
-    normalizeGradeLevel(s.gradeLevel) === normalizeGradeLevel(advisoryGrade)
-  );
+  const notYetAssigned = data.subjects.filter(s => !(s.teacherIds || []).includes(currentLoadTeacherId));
 
   loadTableBody.innerHTML = "";
   loadEmpty.hidden = assigned.length > 0;
@@ -1664,25 +2134,38 @@ function renderLoadModal() {
     tr.innerHTML = `
       <td>${sub.code}</td>
       <td>${sub.name}</td>
+      <td>${sub.gradeLevel || "—"}</td>
       <td class="row-actions">
         <button class="link-delete" data-remove-subject="${sub.id}">Remove</button>
       </td>`;
     loadTableBody.appendChild(tr);
   });
 
-  if (!advisoryGrade) {
-    loadAdvisoryNote.textContent = "This teacher isn't advising a section yet — assign them as a section adviser first to enable adding subjects.";
-    loadAddSelect.innerHTML = `<option value="">No grade level assigned</option>`;
+  // No advisory or grade/section is required: any teacher, adviser or not,
+  // can be given subjects from any grade level since they may teach several
+  // at once.
+  loadAdvisoryNote.textContent = "Subjects from any grade level can be added.";
+  if (notYetAssigned.length === 0) {
+    loadAddSelect.innerHTML = `<option value="">No other subjects available</option>`;
     loadAddSelect.disabled = true;
     loadAddBtn.disabled = true;
-  } else {
-    loadAdvisoryNote.textContent = `Only ${advisoryGrade} subjects can be added — this teacher advises a ${advisoryGrade} section.`;
-    loadAddSelect.innerHTML = unassigned.length
-      ? unassigned.map(s => `<option value="${s.id}">${s.code} — ${s.name}</option>`).join("")
-      : `<option value="">No other ${advisoryGrade} subjects available</option>`;
-    loadAddSelect.disabled = unassigned.length === 0;
-    loadAddBtn.disabled = unassigned.length === 0;
+    return;
   }
+  const byGrade = new Map();
+  [...notYetAssigned]
+    .sort((a, b) =>
+      (a.gradeLevel || "").localeCompare(b.gradeLevel || "", undefined, { numeric: true }) ||
+      (a.code || "").localeCompare(b.code || ""))
+    .forEach(s => {
+      const g = s.gradeLevel || "No grade level";
+      if (!byGrade.has(g)) byGrade.set(g, []);
+      byGrade.get(g).push(s);
+    });
+  loadAddSelect.innerHTML = [...byGrade].map(([grade, list]) =>
+    `<optgroup label="${grade}">${list.map(s => `<option value="${s.id}">${s.code} — ${s.name}</option>`).join("")}</optgroup>`
+  ).join("");
+  loadAddSelect.disabled = false;
+  loadAddBtn.disabled = false;
 }
 
 loadTableBody.addEventListener("click", (e) => {
@@ -1774,8 +2257,12 @@ function gradeCellHtml(quarterLabel, quarterKey, value) {
 }
 
 function openGradesModal(studentId) {
-  currentGradesStudentId = studentId;
   const role = currentUser ? currentUser.role : "admin";
+  // Hard stop: teacher logins can't open the grading card sheet, even if this
+  // is called from somewhere other than the (hidden) row icon — except the
+  // Principal and Vice Principal.
+  if (role === "teacher" && !hasFullGradesAccess()) return;
+  currentGradesStudentId = studentId;
   // Grades: teachers only (and only if their "Edit grades" checkbox is on).
   // Admin accounts can look, but never edit, a student's grades here.
   const student0 = data.students.find(s => s.id === studentId);
@@ -1818,22 +2305,22 @@ function openGradesModal(studentId) {
   // Every subject assigned to this student's grade level (sections within a
   // grade all share the same subject list), not just the ones that already
   // happen to have a grade recorded — so a freshly-added subject still shows.
-  const subjectIds = data.subjects
-    .filter(su => su.gradeLevel === student.gradeLevel)
-    .sort((a, b) => a.code.localeCompare(b.code))
-    .map(su => su.id);
+  // One row per subject code (see subjectRowsForStudent) — the Subjects page
+  // can hold more than one record sharing a code (e.g. one per teacher), but
+  // this sheet should never show the same subject twice for one student.
+  const subjectRows = subjectRowsForStudent(student);
+  const allByCode = data.subjects.filter(su => su.gradeLevel === student.gradeLevel);
 
-  gradesTableBody.innerHTML = subjectIds.map(subjectId => {
-    const subject = data.subjects.find(s => s.id === subjectId);
-    const g = student.grades[subjectId] || {};
+  gradesTableBody.innerHTML = subjectRows.map(subject => {
+    const g = mergedGradesForCode(student, allByCode.filter(r => r.code === subject.code));
     const final = computeFinalRating(g);
     return `
-      <tr data-subject-row="${subjectId}">
-        <td>${subject ? `${subject.code} — ${subject.name}` : "Unknown subject"}</td>
+      <tr data-subject-row="${subject.id}">
+        <td>${subject.code} — ${subject.name}</td>
         ${QUARTERS.map(q => `<td>${gradeCellHtml(q.label, q.key, g[q.key])}</td>`).join("")}
         <td class="final-rating-cell">${fmtGrade(final)}</td>
       </tr>`;
-  }).join("") + (subjectIds.length ? "" : `
+  }).join("") + (subjectRows.length ? "" : `
     <tr><td colspan="6" class="empty-note-cell">No subjects assigned to ${student.gradeLevel} yet.</td></tr>`) + `
     <tr class="row-final">
       <td colspan="5">General average</td>
@@ -1914,6 +2401,189 @@ function closeGradesModal() { gradesBackdrop.hidden = true; }
 document.getElementById("gradesClose").addEventListener("click", closeGradesModal);
 document.getElementById("gradesDone").addEventListener("click", closeGradesModal);
 gradesBackdrop.addEventListener("click", (e) => { if (e.target === gradesBackdrop) closeGradesModal(); });
+
+/* ============================================
+   TEACHER PORTAL — SUBJECT GRADES MODAL
+   ============================================ */
+// Grades are edited from My Portal by regular teachers only: the Principal and
+// Vice Principal are excluded, and the "Edit grades" checkbox on the teacher's
+// account still applies.
+function canEditGradesFromPortal() {
+  return !!currentUser && currentUser.role === "teacher" && !hasFullGradesAccess() && teacherCan("teachersEditGrades");
+}
+
+const subjectGradesBackdrop = document.getElementById("subjectGradesBackdrop");
+const subjectGradesTitle = document.getElementById("subjectGradesTitle");
+const subjectGradesNote = document.getElementById("subjectGradesNote");
+const subjectGradesQuarter = document.getElementById("subjectGradesQuarter");
+const subjectGradesColHead = document.getElementById("subjectGradesColHead");
+const subjectGradesBody = document.querySelector("#subjectGradesTable tbody");
+const subjectGradesEmpty = document.getElementById("subjectGradesEmpty");
+const subjectGradesSaveBtn = document.getElementById("subjectGradesSaveBtn");
+
+let currentSubjectGradesId = null;
+// Unsaved typing, { q2: { [studentId]: "88" } } — kept so switching quarters
+// in the dropdown doesn't throw away what was already typed.
+let subjectGradesDraft = {};
+
+// Subjects belong to a grade level (every section in the grade shares them),
+// so the students of a subject start as the students of its grade level —
+// minus anyone individually removed from this subject code via the student
+// edit modal's "Subjects & teachers" pairlist (see excludedSubjectCodes) —
+// then narrowed to just the students actually resolved to THIS teacher on
+// this record (see resolvedTeacherIdForStudentSubject). That last step
+// matters whenever a subject record has more than one co-teacher: without
+// it, a student assigned to one of two teachers on, say, ENG10 would show
+// up in both teachers' grading modals instead of just theirs.
+function studentsForSubject(subject) {
+  const sectionLabel = st => (st.sectionId ? sectionName(st.sectionId) : "");
+  return data.students
+    .filter(st => st.gradeLevel === subject.gradeLevel && !(st.excludedSubjectCodes || []).includes(subject.code))
+    .filter(st => resolvedTeacherIdForStudentSubject(st, subject) === currentUser.teacherId)
+    .sort((a, b) => sectionLabel(a).localeCompare(sectionLabel(b)) || a.name.localeCompare(b.name));
+}
+
+// Same lock rule as the grading card sheet: once the current period moves on,
+// the earlier quarters are gone from the list (e.g. on 2nd Quarter, 1st is not offered).
+function availableGradingQuarters() {
+  return QUARTERS.filter(q => !isQuarterLocked(q.label));
+}
+
+function openSubjectGradesModal(subjectId) {
+  if (!canEditGradesFromPortal()) return;
+  const subject = data.subjects.find(s => s.id === subjectId);
+  if (!subject || !(subject.teacherIds || []).includes(currentUser.teacherId)) return;
+  const quarters = availableGradingQuarters();
+  if (!quarters.length) return;
+
+  currentSubjectGradesId = subjectId;
+  subjectGradesDraft = {};
+  subjectGradesTitle.textContent = `Edit grades — ${subject.code} · ${subject.name}`;
+  subjectGradesQuarter.innerHTML = quarters.map(q => `<option value="${q.key}">${q.label}</option>`).join("");
+  const current = quarters.find(q => q.label === settings.period);
+  subjectGradesQuarter.value = current ? current.key : quarters[0].key;
+  renderSubjectGradesModal();
+  subjectGradesBackdrop.hidden = false;
+}
+
+function renderSubjectGradesModal() {
+  const subject = data.subjects.find(s => s.id === currentSubjectGradesId);
+  if (!subject) return;
+  const qKey = subjectGradesQuarter.value;
+  const quarter = QUARTERS.find(q => q.key === qKey);
+  subjectGradesColHead.textContent = quarter ? `${quarter.label} grade` : "Grade";
+  subjectGradesNote.textContent = `${subject.gradeLevel} · Currently on ${settings.period}. Earlier quarters are locked and no longer appear in the list.`;
+
+  const students = studentsForSubject(subject);
+  subjectGradesEmpty.textContent = `No students in ${subject.gradeLevel} yet.`;
+  subjectGradesEmpty.hidden = students.length > 0;
+  subjectGradesSaveBtn.disabled = students.length === 0;
+
+  subjectGradesBody.innerHTML = students.map(st => {
+    const draft = (subjectGradesDraft[qKey] || {})[st.id];
+    const saved = st.grades && st.grades[subject.id] ? st.grades[subject.id][qKey] : undefined;
+    const value = draft !== undefined ? draft : (typeof saved === "number" ? saved : "");
+    return `<tr>
+      <td>${st.studentNo}</td>
+      <td>${st.name}</td>
+      <td>${st.sectionId ? sectionName(st.sectionId) : "—"}</td>
+      <td><input type="number" class="grade-input" min="0" max="100" step="1" data-student="${st.id}" value="${value}" placeholder="—"></td>
+    </tr>`;
+  }).join("");
+}
+
+subjectGradesQuarter.addEventListener("change", renderSubjectGradesModal);
+
+subjectGradesBody.addEventListener("input", (e) => {
+  if (!e.target.matches(".grade-input")) return;
+  const qKey = subjectGradesQuarter.value;
+  if (!subjectGradesDraft[qKey]) subjectGradesDraft[qKey] = {};
+  subjectGradesDraft[qKey][e.target.dataset.student] = e.target.value.trim();
+});
+
+subjectGradesSaveBtn.addEventListener("click", () => {
+  const subject = data.subjects.find(s => s.id === currentSubjectGradesId);
+  if (!subject || !canEditGradesFromPortal() || !(subject.teacherIds || []).includes(currentUser.teacherId)) return;
+
+  // Work out what actually changed, and validate before touching anything.
+  const changes = [];
+  let outOfRange = false;
+  Object.keys(subjectGradesDraft).forEach(qKey => {
+    const quarter = QUARTERS.find(q => q.key === qKey);
+    if (!quarter || isQuarterLocked(quarter.label)) return;
+    Object.entries(subjectGradesDraft[qKey]).forEach(([studentId, raw]) => {
+      const student = data.students.find(st => st.id === Number(studentId));
+      if (!student) return;
+      const existing = student.grades && student.grades[subject.id] ? student.grades[subject.id][qKey] : undefined;
+      let value = null;
+      if (raw !== "") {
+        value = Number(raw);
+        if (Number.isNaN(value) || value < 0 || value > 100) { outOfRange = true; return; }
+      }
+      if (value === (typeof existing === "number" ? existing : null)) return; // nothing changed
+      changes.push({ student, qKey, quarter, value });
+    });
+  });
+
+  if (outOfRange) {
+    showToast("Grades must be between 0 and 100.", "warning");
+    return;
+  }
+  if (!changes.length) {
+    showToast("No changes to save.", "warning");
+    return;
+  }
+
+  const touched = new Set();
+  changes.forEach(({ student, qKey, value }) => {
+    if (!student.grades) student.grades = {};
+    if (!student.grades[subject.id]) student.grades[subject.id] = {};
+    if (value === null) delete student.grades[subject.id][qKey];
+    else student.grades[subject.id][qKey] = value;
+    touched.add(student);
+  });
+
+  const gradeRows = [...touched].map(st => ({
+    student_id: st.id,
+    subject_id: subject.id,
+    q1: st.grades[subject.id].q1 ?? null,
+    q2: st.grades[subject.id].q2 ?? null,
+    q3: st.grades[subject.id].q3 ?? null,
+    q4: st.grades[subject.id].q4 ?? null,
+  }));
+
+  const quarterLabels = [...new Set(changes.map(c => c.quarter.label))].join(", ");
+  logActivity(`Updated ${quarterLabels} grades for ${subject.code} (${touched.size} student${touched.size === 1 ? "" : "s"}).`, "Student", "Edit", `${subject.code} — ${subject.name}`);
+
+  subjectGradesSaveBtn.disabled = true;
+  supabaseClient.from("grades").upsert(gradeRows, { onConflict: "student_id,subject_id" }).then(({ error }) => {
+    subjectGradesSaveBtn.disabled = false;
+    if (error) {
+      console.error(error);
+      showToast("Couldn't save grades to the database.", "error");
+      return;
+    }
+    showToast("Grades saved.", "success");
+  });
+
+  subjectGradesDraft = {};
+  renderSubjectGradesModal();
+});
+
+function closeSubjectGradesModal() {
+  subjectGradesBackdrop.hidden = true;
+  currentSubjectGradesId = null;
+  subjectGradesDraft = {};
+}
+document.getElementById("subjectGradesClose").addEventListener("click", closeSubjectGradesModal);
+document.getElementById("subjectGradesDone").addEventListener("click", closeSubjectGradesModal);
+subjectGradesBackdrop.addEventListener("click", (e) => { if (e.target === subjectGradesBackdrop) closeSubjectGradesModal(); });
+
+document.querySelector("#portalSubjectsTable tbody").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-portal-grades]");
+  if (!btn) return;
+  openSubjectGradesModal(Number(btn.dataset.portalGrades));
+});
 
 /* ============================================
    TEACHER FILTER BAR WIRING
