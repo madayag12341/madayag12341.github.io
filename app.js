@@ -1,4 +1,4 @@
-/* ============================================
+/* ============================================ 
    SUPABASE CONNECTION
    Reads/writes go straight to the tables from
    schema.sql.
